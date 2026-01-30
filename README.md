@@ -78,9 +78,8 @@ HOME/
     └── README.md
 ---
 
-⚙️ Prérequis
-Système
+## ⚙️ Prérequis
 
-Linux (recommandé)
+- Linux (recommandé)
 
-macOS (non testé)
+- macOS (non testé)
