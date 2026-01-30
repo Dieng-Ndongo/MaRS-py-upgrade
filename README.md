@@ -4,9 +4,9 @@
 ---
 
 ## 📌 Présentation générale
-**MaRS-Py** est un pipeline bioinformatique modulaire développé en **Python**, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
+**MaRS-Py-upgrade** est un pipeline bioinformatique modulaire développé en **Python**, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
 
-Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes **pfcrt**, **pfmdr1**, **pfdhfr** et **pfdhps**, utilisés comme marqueurs de résistance aux traitements antipaludiques.
+Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes **pfcrt**, **pfmdr1**,**pfk13**, **pfdhfr** et **pfdhps**, utilisés comme marqueurs de résistance aux traitements antipaludiques.
 
 Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture plus lisible, reproductible et automatisée.
 
@@ -76,3 +76,11 @@ HOME/
     │
     ├── requirements.txt
     └── README.md
+---
+
+⚙️ Prérequis
+Système
+
+Linux (recommandé)
+
+macOS (non testé)
