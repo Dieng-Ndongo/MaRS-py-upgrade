@@ -890,6 +890,30 @@ def annotate_all_vcfs(vcf_dir = "output/vcf_files", db_name = "pf_3D7_snpEff_db"
 
 
 
+import json
+import subprocess
+from pathlib import Path
+
+from pathlib import Path
+
+def find_snpsift_jar(env_name="pipeline_env"):
+    """
+    Retourne le chemin absolu du SnpSift.jar dans l'environnement Micromamba
+    """
+    base_path = Path("/opt/conda/envs") / env_name / "share"
+    # Chercher un dossier contenant 'snpsift'
+    snpsift_dirs = [d for d in base_path.glob("snpsift*") if d.is_dir()]
+    if not snpsift_dirs:
+        raise FileNotFoundError(f"SnpSift.jar introuvable dans {base_path}")
+    snpsift_jar = snpsift_dirs[0] / "SnpSift.jar"
+    if not snpsift_jar.exists():
+        raise FileNotFoundError(f"SnpSift.jar introuvable à : {snpsift_jar}")
+    return str(snpsift_jar)
+
+
+
+
+
 def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
     """
     Applique SnpSift varType sur tous les fichiers VCF annotés présents dans input_dir.
@@ -911,13 +935,22 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
         global_log.write(f"Début : {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
         # Localisation du jar
+        """
         if env_path:
             snpsift_jar = Path(env_path) / "share" / "snpsift-5.3.0a-0" / "SnpSift.jar"
         else:
             raise FileNotFoundError("Veuillez spécifier env_path vers votre environnement conda contenant SnpSift.jar")
-
         if not snpsift_jar.exists():
             raise FileNotFoundError(f"SnpSift.jar introuvable à : {snpsift_jar}")
+        """
+        # Localisation du jar
+        # Localisation du jar SnpSift
+        snpsift_jar = find_snpsift_jar(env_name="pipeline_env")
+        print(f"[INFO] SnpSift.jar trouvé à : {snpsift_jar}")
+
+
+
+        
 
         # Liste des fichiers annotés
         annotated_vcfs = glob.glob(os.path.join(input_dir, "*_annot.vcf"))
@@ -3008,8 +3041,6 @@ def generate_final_report_by_site(
     story.append(table_summary)
     story.append(Spacer(1,12))
 
-    
-
         
 
     
@@ -3710,12 +3741,12 @@ if __name__ == "__main__":
     #======================================================================
     #        Pipeline Main
     #======================================================================
-    
+
     
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
     
-    """
+    
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
@@ -3735,12 +3766,12 @@ if __name__ == "__main__":
     # Lancement MultiQC_post_trimming
     MultiQC_post_trimming(output_dir="output/QC_post_trimming", report_name="MultiQC_post_trimming_report.html")
 
-    """
+    
     # Lancement bwa_index
     reference = "pf_3D7_Ref/mars_pf_ref.fasta"  # chemin vers la référence
     bwa_index(reference)
 
-    """
+    
     # Lancement bwa_align
     bwa_align()
 
@@ -3761,7 +3792,6 @@ if __name__ == "__main__":
     build_snpeff_db(db_name="pf_3D7_snpEff_db", 
         snpeff_config="pf_3D7_snpEff_db",
         output_dir="output")
-    
         
     # Lancement l'annotation
     annotated = annotate_all_vcfs()
@@ -3876,7 +3906,7 @@ if __name__ == "__main__":
     
     
     generate_final_report_by_site_0()
-    """
+
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
     print("[PIPELINE] Fin du pipeline.")   
