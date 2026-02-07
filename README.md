@@ -8,22 +8,22 @@
 
 Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes **pfcrt**, **pfmdr1**,**pfk13**, **pfdhfr** et **pfdhps**, utilisés comme marqueurs de résistance aux traitements antipaludiques.
 
-Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture plus lisible, reproductible et automatisée.
+Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture lisible, reproductible et automatisée.
 
 ---
 
 ## 🎯 Objectifs
-- Automatiser l’analyse bioinformatique des données NGS
-- Identifier les variants génétiques associés à la résistance aux antipaludiques
-- Comparer les résultats issus de plusieurs outils d’appel de variants
+- Automatiser l’analyse bioinformatique des données NGS de *Plasmodium falciparum* 
+- Identifier les variants génétiques associés à la résistance aux antipaludiques en utilisant plusieurs outils d’appel de variants
+- Calcul des VAF (Variant Allele Frequency) par gène et par site
 - Analyser les haplotypes par gène et par site
-- Générer des rapports de synthèse et des visualisations exploitables
+- Générer de rapport de synthèse et de visualisation exploitable
 - Garantir la traçabilité des analyses via des fichiers de logs
 
 ---
 
 ## 🔬 Données analysées
-- Données de séquençage NGS (FASTQ compressés)
+- Données de séquençage NGS (FASTQ compressés) utiisant la nommanclature **AMD_ID**
 - Échantillons individuels et/ou poolés
 - Génome de référence : *Plasmodium falciparum* 3D7
 
