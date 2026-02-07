@@ -1,10 +1,10 @@
-# 🧬 MaRS-Py-upgrade 
+# MaRS-py-upgrade 
 **Réimplémentation et extension en Python du pipeline MaRS pour l’analyse des marqueurs moléculaires de résistance de *Plasmodium falciparum***
 
 ---
 
-## 📌 Présentation générale
-**MaRS-Py-upgrade** est un pipeline bioinformatique modulaire développé en **Python**, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
+## Présentation générale
+**MaRS-py-upgrade** est un pipeline bioinformatique modulaire développé en **Python**, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
 
 Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes **pfcrt**, **pfmdr1**,**pfk13**, **pfdhfr** et **pfdhps**, utilisés comme marqueurs de résistance aux traitements antipaludiques.
 
@@ -12,7 +12,7 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 
 ---
 
-## 🎯 Objectifs
+## Objectifs
 - Automatiser l’analyse bioinformatique des données NGS de *Plasmodium falciparum* 
 - Identifier les variants génétiques associés à la résistance aux antipaludiques en utilisant plusieurs outils d’appel de variants
 - Calcul des VAF (Variant Allele Frequency) par gène et par site
@@ -22,14 +22,14 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 
 ---
 
-## 🔬 Données analysées
+## Données analysées
 - Données de séquençage NGS (FASTQ compressés) utiisant la nommanclature **AMD_ID**
 - Échantillons individuels et/ou poolés
 - Génome de référence : *Plasmodium falciparum* 3D7
 
 ---
 
-## 🔄 Workflow général
+## Workflow général
 Le pipeline est structuré sous forme de modules fonctionnels indépendants, exécutés de manière séquentielle :
 
 1. Préparation et contrôle des données FASTQ  
@@ -76,9 +76,9 @@ HOME/
     │
     ├── requirements.txt
     └── README.md
----
+---text
 
-## ⚙️ Prérequis
+## Prérequis
 
 - Linux (recommandé)
 
