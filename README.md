@@ -76,7 +76,8 @@ HOME/
     │
     ├── requirements.txt
     └── README.md
----text
+---
+---
 
 ## Prérequis
 
