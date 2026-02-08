@@ -14,8 +14,8 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 
 ## Objectifs
 - Automatiser l’analyse bioinformatique des données NGS de *Plasmodium falciparum* 
-- Identifier les variants génétiques associés à la résistance aux antipaludiques en utilisant plusieurs outils d’appel de variants
-- Calcul des VAF (Variant Allele Frequency) par gène et par site
+- Identifier les variants génétiques associés à la résistance aux antipaludiques en utilisant plusieurs outils d’appel de variants (samtools, GATK, freebayes et vardict)
+- Calcul des VAF (fréquence allélique du variant)  par gène et par site
 - Analyser les haplotypes par gène et par site
 - Générer de rapport de synthèse et de visualisation exploitable
 - Garantir la traçabilité des analyses via des fichiers de logs
@@ -32,18 +32,19 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 ## Workflow général
 Le pipeline est structuré sous forme de modules fonctionnels indépendants, exécutés de manière séquentielle :
 
-1. Préparation et contrôle des données FASTQ  
-2. Alignement des lectures sur le génome de référence (*Pf3D7*)  
-3. Traitement des fichiers BAM  
+1. Contrôle des données FASTQ  
+2. Trimming 
+3. Alignement des lectures sur le génome de référence (*Pf3D7*)
 4. Appel de variants avec plusieurs outils :
    - Samtools
    - FreeBayes
    - GATK HaplotypeCaller
    - VarDict
 5. Fusion et harmonisation des fichiers VCF  
-6. Filtrage et annotation des variants  
-7. Analyse des haplotypes par gène  
-8. Génération de rapports et de graphiques
+6. Filtrage et annotation des variants
+7. Calcul de VAF (fréquence allélique du variant) 
+8. Analyse des haplotypes par gène  
+9. Génération de rapports et de graphiques
 
 ---
 
@@ -55,31 +56,30 @@ HOME/
     ├── data/                     # Données brutes (FASTQ)
     │   └── *.fastq.gz
     │
-    ├── bin/                      # Scripts Python du pipeline
-    │   ├── fastq_processing.py
-    │   ├── alignment.py
-    │   ├── variant_calling.py
-    │   ├── csv_merge.py
-    │   └── reporting.py
+    ├── bin/                      # Scripts secondaires appelés dans le script principale
+    │   
     │
     ├── output/                   # Résultats générés
-    │   ├── fastq/
+    │   ├── QC/
     │   ├── bam/
     │   ├── variants/
-    │   ├── haplotypes/
-    │   └── reports/
+    │   └── haplotypes/, etc.
     │
     ├── logs/                     # Logs d’exécution
     │   └── *.log
     │
     ├── pf_3D7/                   # Génome de référence
     │
-    ├── requirements.txt
-    └── README.md
+    ├── pf_3D7_snpEff_db          # Création du base d'annotation
+    |
+    |
+    ├── pipeline_python.py        # Script du pipeline
+    ├── Dockerfile                # Fichier docker
+    └── README.md                 # Fichier README
 
 ```
 ---
 
 ## Prérequis
-- Linux (recommandé)
-- macOS (non testé)
+- Linux (recommandé), macOS (non testé) 
+- Docker
