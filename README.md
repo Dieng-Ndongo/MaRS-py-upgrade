@@ -123,4 +123,12 @@ newgrp docker
 
 mkdir -p ~/pipeline
 
-git clone 
+cd ~/pipeline
+
+git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade.git
+
+docker build -t bioinfo_pipeline .
+
+docker run --rm -it -v ~/pipeline:/app bioinfo_pipeline
+
+```
