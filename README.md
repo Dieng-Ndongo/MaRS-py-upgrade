@@ -76,11 +76,10 @@ HOME/
     │
     ├── requirements.txt
     └── README.md
----
+
+```
 ---
 
 ## Prérequis
-
 - Linux (recommandé)
-
 - macOS (non testé)
