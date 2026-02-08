@@ -88,7 +88,7 @@ HOME/
 
 ## Installation
 ### 1. Installer Docker
-Pour installer Docker, executer succesivement les codes suivants dans le terminale :
+Pour installer Docker, executer succesivement les commandes suivantes dans le terminale :
 ```bash
 
 sudo apt update
