@@ -22,7 +22,7 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 
 ---
 
-## Données analysées
+## Données
 - Données de séquençage NGS (FASTQ compressés) utiisant la nommanclature **AMD_ID**
 - Échantillons individuels et/ou poolés
 - Génome de référence : *Plasmodium falciparum* 3D7
@@ -73,7 +73,8 @@ HOME/
     ├── pf_3D7_snpEff_db          # Création du base d'annotation
     |
     |
-    ├── pipeline_python.py        # Script du pipeline
+    ├── pipeline_python.py        # Script du pipeline  
+    ├── environment.yml           # environment       
     ├── Dockerfile                # Fichier docker
     └── README.md                 # Fichier README
 
