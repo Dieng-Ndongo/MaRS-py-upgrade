@@ -2911,7 +2911,7 @@ def generate_final_report_by_site(
     story = []
 
     # Logo
-    logo_path = out_dir / "logoCIGASS.png"
+    logo_path = Path(out_dir).parent.parent.parent / "images" / "logoCIGASS.png"
     if logo_path.exists():
         story.append(Image(str(logo_path), width=370, height=120))
         story.append(Spacer(1, 10))
@@ -3380,7 +3380,7 @@ def generate_final_report_by_site_0(
     story = []
 
     # Logo
-    logo_path = out_dir / "logoCIGASS.png"
+    logo_path = Path(out_dir).parent.parent.parent / "images" / "logoCIGASS.png"
     if logo_path.exists():
         story.append(Image(str(logo_path), width=370, height=120))
         story.append(Spacer(1, 10))
@@ -3745,7 +3745,7 @@ if __name__ == "__main__":
     
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
-    
+    """
     
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
@@ -3900,7 +3900,7 @@ if __name__ == "__main__":
     # génération du fichier CSV combiné des haplotypes
     run_combined_haplotypes()
     
-    
+    """
     # Lancement generate_final_report_by_site
     generate_final_report_by_site()
     
