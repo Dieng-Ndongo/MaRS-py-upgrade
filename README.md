@@ -137,7 +137,17 @@ cd ~/pipeline
 
 git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade.git
 
+```
+### 3. Construction de l'image docker
+
+```bash
+
 docker build -t bioinfo_pipeline .
+
+```
+### Exécution du pipeline
+
+```bash
 
 docker run --rm -it -v ~/pipeline:/app bioinfo_pipeline
 
