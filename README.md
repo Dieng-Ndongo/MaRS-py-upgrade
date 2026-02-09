@@ -27,6 +27,12 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 - Échantillons individuels et/ou poolés
 - Génome de référence : *Plasmodium falciparum* 3D7
 
+### Nomenclature AMD_ID
+
+![Nomenclature AMD_ID pour les échantillons individuels](images/individual_AMD_ID.png)
+
+![Nomenclature AMD_ID pour les échantillons poolés](images/pooled_AMD_ID.png)
+
 ---
 
 ## Workflow général
@@ -72,6 +78,9 @@ HOME/
     │
     ├── pf_3D7_snpEff_db          # Création du base d'annotation
     |
+    |  
+    ├── images                    # dossier contenant des images
+    |    
     |
     ├── pipeline_python.py        # Script du pipeline  
     ├── environment.yml           # environment       
