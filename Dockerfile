@@ -19,9 +19,14 @@ RUN micromamba create -y -n pipeline_env -f /app/environment.yml && \
 # ===== Copier tout le pipeline =====
 COPY . /app
 
-# ===== Créer dossiers nécessaires et donner les droits =====
-RUN mkdir -p /app/output /app/logs /app/data && \
-    chmod -R 777 /app/output /app/logs /app/data
+# ===== Créer dossiers nécessaires =====
+RUN mkdir -p /app/output /app/logs /app/data
+
+# ===== Créer un utilisateur non-root =====
+RUN useradd -m -u 1000 pipelineuser && \
+    chown -R pipelineuser:pipelineuser /app
+
+USER pipelineuser
 
 # ===== Utiliser l'environnement conda pour la suite =====
 SHELL ["micromamba", "run", "-n", "pipeline_env", "/bin/bash", "-c"]
