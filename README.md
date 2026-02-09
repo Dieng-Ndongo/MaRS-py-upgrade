@@ -145,7 +145,7 @@ git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade.git
 docker build -t bioinfo_pipeline .
 
 ```
-### Exécution du pipeline
+### 4. Exécution du pipeline
 
 ```bash
 
