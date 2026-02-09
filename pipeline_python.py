@@ -16,10 +16,15 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import PageTemplate, Frame
 from reportlab.lib.units import mm
 from functools import reduce
+from reportlab.platypus import Paragraph
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.platypus import Paragraph
+import json
 
 
 #======================================================================
@@ -338,8 +343,6 @@ def run_cmd(cmd, log_file):
             lf.write(f"[ERROR] Échec de la commande : {e}\n")
             raise
 
-
-
 def bwa_index(ref, output_dir="output/index_ref", logs_dir="logs"):
     """
     Indexation de la séquence de référence :
@@ -398,7 +401,6 @@ def bwa_index(ref, output_dir="output/index_ref", logs_dir="logs"):
     print(f"[PIPELINE] Étape bwa_index terminée en {total_time/60:.2f} minutes")
     print(f"[INFO] Log global disponible ici : {log_file}")
     print("********************** BWA_INDEX : Fin *****************************")
-
 
 
 
@@ -541,6 +543,7 @@ def bwa_align(input_dir="output/trimmed_reads", sam_dir="output/sam_files", bam_
     print(f"\n[PIPELINE] Étape bwa_align terminée en {total_time/60:.2f} minutes")
     print(f"[INFO] Log global disponible ici : {log_file}")
     print("********************** BWA_ALIGN : Fin *****************************")
+
 
 
 def picard_add_readgroups(input_dir="output/sam_files", output_dir="output/bam_picard_readgroups", 
@@ -890,12 +893,6 @@ def annotate_all_vcfs(vcf_dir = "output/vcf_files", db_name = "pf_3D7_snpEff_db"
 
 
 
-import json
-import subprocess
-from pathlib import Path
-
-from pathlib import Path
-
 def find_snpsift_jar(env_name="pipeline_env"):
     """
     Retourne le chemin absolu du SnpSift.jar dans l'environnement Micromamba
@@ -909,9 +906,6 @@ def find_snpsift_jar(env_name="pipeline_env"):
     if not snpsift_jar.exists():
         raise FileNotFoundError(f"SnpSift.jar introuvable à : {snpsift_jar}")
     return str(snpsift_jar)
-
-
-
 
 
 def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
@@ -934,23 +928,10 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
         global_log.write("[PIPELINE] --- DÉBUT DE L'ÉTAPE VARTYPE ---\n")
         global_log.write(f"Début : {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-        # Localisation du jar
-        """
-        if env_path:
-            snpsift_jar = Path(env_path) / "share" / "snpsift-5.3.0a-0" / "SnpSift.jar"
-        else:
-            raise FileNotFoundError("Veuillez spécifier env_path vers votre environnement conda contenant SnpSift.jar")
-        if not snpsift_jar.exists():
-            raise FileNotFoundError(f"SnpSift.jar introuvable à : {snpsift_jar}")
-        """
-        # Localisation du jar
+
         # Localisation du jar SnpSift
         snpsift_jar = find_snpsift_jar(env_name="pipeline_env")
         print(f"[INFO] SnpSift.jar trouvé à : {snpsift_jar}")
-
-
-
-        
 
         # Liste des fichiers annotés
         annotated_vcfs = glob.glob(os.path.join(input_dir, "*_annot.vcf"))
@@ -2496,8 +2477,6 @@ def run_haplotypes(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DM
 
 
 
-
-
 def filter_haplotypes(input_file="output/haplotypes/haplotypes_summary.csv",
                       output_file="output/haplotypes/filtered_haplotypes_summary.csv"):
     """
@@ -2570,291 +2549,9 @@ def run_combined_haplotypes(input_file="output/haplotypes/filtered_haplotypes_su
 
 
 
-
-
-
 #======================================================================
 # Generation du rapport final par site
 #======================================================================
-
-
-
-def generate_final_report_by_site_1(
-    reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
-    combined_hap_file="output/haplotypes/Combined_Haplotypes.csv",
-    vaf_file="output/SVAF_merge/SVAF_merge.csv",
-    out_dir="output/haplotypes/Report",
-    pdf_name="Final_Report.pdf"
-):
-    from pathlib import Path
-    import pandas as pd
-    import re
-    import os
-    import matplotlib.pyplot as plt
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4 
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame
-
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    img_dir = out_dir / "tmp_images"
-    img_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = out_dir / pdf_name
-
-    # --- Read inputs ---
-    df = pd.read_csv(reportable_file, dtype=str).fillna("")
-    dh = pd.read_csv(combined_hap_file, dtype=str).fillna("")
-    df_vaf = pd.read_csv(vaf_file, dtype=str).fillna("")
-
-    # --- Add SITE columns ---
-    df["SITE"] = df["LSDB_Sequence_ID"].str[4:6]
-    dh["SITE"] = dh["Sample"].str[4:6]
-    df_vaf["SITE"] = df_vaf["Sample_name"].str[4:6]
-    sites = df["SITE"].unique()
-
-    # --- helper to get sample weight ---
-    def get_sample_weight(sample_name):
-        m = re.search(r'P(\d+)', str(sample_name))
-        if m:
-            return int(m.group(1))
-        return 1
-
-    # --- helper to count MT occurrences ---
-    def count_mt(col_name, data):
-        ser = data[col_name].astype(str).str.strip().str.upper()
-        mask = (ser == "MT")
-        return int(data.loc[mask, "__WEIGHT__"].sum())
-
-    # --- robust null-like tester ---
-    null_like_re = re.compile(r'^\s*(Null.*|Nul.*|na|n/?a|nan|-+)?\s*$', flags=re.IGNORECASE)
-    def is_null_like(series: pd.Series):
-        s = series.fillna("").astype(str).str.strip()
-        return s.str.match(null_like_re)
-
-    # --- Prepare PDF ---
-    styles = getSampleStyleSheet()
-    story = []
-
-    # --- CIGASS logo ---
-    logo_path = out_dir / "logoCIGASS.png"
-    if logo_path.exists():
-        story.append(Image(str(logo_path), width=370, height=120))
-        story.append(Spacer(1, 10))
-
-    story.append(Paragraph("<b>Final Report SNP & Haplotype</b>", styles["Title"]))
-    story.append(Spacer(1, 14))
-
-    # --- Loop over sites ---
-    for site in sites:
-        story.append(Paragraph(f"<b>Site : {site}</b>", styles["Heading1"]))
-        story.append(Spacer(1, 10))
-
-        # Filter data for the site
-        site_df = df[df["SITE"] == site].copy()
-        site_dh = dh[dh["SITE"] == site].copy()
-        site_vaf = df_vaf[df_vaf["SITE"] == site].copy()
-
-        # Sample weights
-        site_df["__WEIGHT__"] = site_df["LSDB_Sequence_ID"].apply(get_sample_weight)
-        total_samples = site_df["__WEIGHT__"].sum()
-        story.append(Paragraph(f"Total samples : <b>{total_samples}</b>", styles["Normal"]))
-        story.append(Spacer(1, 10))
-
-        # --- Build VAF dictionary ---
-        vaf_pop_dict = {}
-        for _, r in site_vaf.iterrows():
-            snp = r["Gene_ANNOTATION"] if "Gene_ANNOTATION" in r else r.get("AA_change", "")
-            vaf = r.get("%VAF_FINAL_SNP", "")
-            if snp:
-                vaf_pop_dict[snp] = vaf
-
-        # --- Identify gene blocks ---
-        gene_blocks = {}
-        current_gene = None
-        for col in site_df.columns:
-            if ": # Drug resistant mutations" in col:
-                current_gene = col.split(":")[0].strip()
-                gene_blocks[current_gene] = []
-            else:
-                if current_gene is not None:
-                    gene_blocks[current_gene].append(col)
-        for g in list(gene_blocks.keys()):
-            cols = [c for c in gene_blocks[g] if re.search(r"\d", c)]
-            gene_blocks[g] = cols
-            if len(cols) == 0:
-                gene_blocks.pop(g, None)
-        gene_blocks.pop("CytoB", None)
-
-        # --- Define order ---
-        order = []
-        if "DHFR" in gene_blocks or "DHPS" in gene_blocks:
-            order.append(("DHFR and DHPS", ["DHFR","DHPS"]))
-        for g in ["CRT","MDR"]:
-            if g in gene_blocks:
-                order.append((g, [g]))
-        for g in gene_blocks:
-            if g not in ("DHFR","DHPS","CRT","MDR","CytB"):
-                order.append((g,[g]))
-
-        # --- Loop over gene sections ---
-        for section_name, genes_in_section in order:
-            story.append(Paragraph(f"<b>{section_name}</b>", styles["Heading2"]))
-            story.append(Spacer(1, 8))
-
-            for gene in genes_in_section:
-                if gene not in gene_blocks:
-                    continue
-                snp_cols = gene_blocks[gene]
-                if len(snp_cols) == 0:
-                    continue
-
-                story.append(Paragraph(f"<b>{gene} — SNP</b>", styles["Heading3"]))
-                story.append(Spacer(1, 6))
-
-                table_data = [["SNP", "N of samples", "Percent (%)", "%VAF_pop"]]
-                counts = {}
-                for col in snp_cols:
-                    c = count_mt(col, site_df)
-                    pct = (c / total_samples * 100) if total_samples > 0 else 0.0
-                    counts[col] = c
-                    vaf_pop = "NA" if c == 0 else vaf_pop_dict.get(col, "NA")
-                    table_data.append([col, str(c), f"{pct:.1f}%", vaf_pop])
-
-                table = Table(table_data, colWidths=[140, 80, 80, 80])
-                table.setStyle(TableStyle([
-                    ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-                    ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-                    ("ALIGN", (1,1), (-1,-1), "CENTER")
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 8))
-
-                if sum(counts.values()) > 0:
-                    img_path = img_dir / f"{site}_{gene}_snp_bar.png"
-                    plt.figure(figsize=(6,3.5))
-                    plt.bar(list(counts.keys()), list(counts.values()))
-                    plt.xticks(rotation=45, ha="right")
-                    plt.ylabel("N of samples")
-                    plt.title(f"{gene} — SNP Mutation Distribution")
-                    plt.tight_layout()
-                    plt.savefig(img_path, dpi=150)
-                    plt.close()
-                    story.append(Image(str(img_path), width=440, height=220))
-                    story.append(Spacer(1, 12))
-                else:
-                    story.append(Paragraph("Aucune mutation détectée pour ce gène.", styles["Normal"]))
-                    story.append(Spacer(1, 8))
-
-            # --- Haplotypes ---
-            for gene in genes_in_section:
-                if gene not in site_dh.columns:
-                    continue
-                series = site_dh[gene].astype(str).str.strip()
-                valid_mask = ~series.str.contains(r'Nul', case=False)
-                df_h_valid = site_dh.loc[valid_mask].copy()
-                if df_h_valid.empty:
-                    story.append(Paragraph(f"Aucun haplotype valide trouvé pour {gene}.", styles["Normal"]))
-                    story.append(Spacer(1,8))
-                    continue
-
-                df_h_valid["__WEIGHT__"] = df_h_valid["Sample"].apply(get_sample_weight)
-                freq = df_h_valid.groupby(gene)["__WEIGHT__"].sum().reset_index()
-                freq.columns = ["Haplotype", "Count"]
-                total_h = freq["Count"].sum()
-                freq["Percent"] = (freq["Count"] / total_h * 100).round(1)
-
-                story.append(Paragraph(f"<b>Haplotypes {gene}</b>", styles["Heading3"]))
-                story.append(Spacer(1,6))
-                story.append(Paragraph(f"<b>Total haplotypes detected ({gene}) : {total_h}</b>", styles["Normal"]))
-                story.append(Spacer(1, 6))
-
-                table_data = [["Haplotype", "N of samples", "Percent"]]
-                for _, r in freq.iterrows():
-                    table_data.append([r["Haplotype"], int(r["Count"]), f"{r['Percent']}%"])
-
-                t = Table(table_data, colWidths=[220, 80, 80])
-                t.setStyle(TableStyle([
-                    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-                    ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-                    ("ALIGN", (1,1), (-1,-1), "CENTER")
-                ]))
-                story.append(t)
-                story.append(Spacer(1,8))
-
-                img_path = img_dir / f"{site}_{gene}_haplo.png"
-                plt.figure(figsize=(6,3.5))
-                plt.bar(freq["Haplotype"].astype(str), freq["Count"])
-                plt.xticks(rotation=45, ha="right")
-                plt.title(f"{gene} haplotype distribution")
-                plt.tight_layout()
-                plt.savefig(img_path, dpi=150)
-                plt.close()
-                story.append(Image(str(img_path), width=440, height=220))
-                story.append(Spacer(1, 12))
-    
-        story.append(Spacer(1, 18))
-
-    # --- Build PDF ---
-    from reportlab.lib.units import mm
-    from reportlab.platypus import PageTemplate, Frame
-
-    def draw_header(canvas, doc, logo_path):
-        canvas.saveState()
-        canvas.setFillColor(colors.lightblue)
-        canvas.rect(0, doc.height + doc.topMargin + 10, doc.width + 2*doc.leftMargin, 25, fill=1)
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=doc.height + doc.topMargin + 12, width=55, height=18, preserveAspectRatio=True, mask='auto')
-        canvas.setFillColor(colors.black)
-        canvas.setFont("Helvetica-Bold", 12)
-        canvas.drawString(doc.leftMargin + 55, doc.height + doc.topMargin + 18, "CIGASS — UCAD — Sénégal")
-        canvas.restoreState()
-
-    def draw_footer(canvas, doc, logo_path):
-        canvas.saveState()
-        footer_y = 8 * mm
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y, width=40, height=15, preserveAspectRatio=True, mask='auto')
-        canvas.setFont("Helvetica", 10)
-        canvas.drawRightString(doc.width + doc.leftMargin, footer_y + 3, f"Page {doc.page}")
-        canvas.restoreState()
-
-    def decorate_page(canvas, doc):
-        draw_header(canvas, doc, str(logo_path))
-        draw_footer(canvas, doc, str(logo_path))
-
-    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
-    frame = Frame(doc.leftMargin, doc.bottomMargin+30, doc.width, doc.height-60, id="normal")
-    page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
-    doc.addPageTemplates([page_template])
-    doc.build(story)
-
-    # cleanup images
-    for f in img_dir.glob("*"):
-        try: f.unlink()
-        except: pass
-
-    print(f"✅ Rapport combiné généré : {pdf_path}")
-    return str(pdf_path)
-
-
-
-
-
-from pathlib import Path
-import pandas as pd
-import re
-import os
-import matplotlib.pyplot as plt
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame
-from reportlab.lib.units import mm
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
-
 
 def generate_final_report_by_site(
     reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
@@ -3312,18 +3009,7 @@ def generate_final_report_by_site(
 
 
 
-from pathlib import Path
-import pandas as pd
-import re
-import os
-import matplotlib.pyplot as plt
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame
-from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
+
 
 def generate_final_report_by_site_0(
     reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
@@ -3466,17 +3152,7 @@ def generate_final_report_by_site_0(
     # --- Affichage dans le PDF ---
     story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
-    """
-    table_summary = Table(summary_data, colWidths=[260] + [70]*len(sites) + [70])
-    table_summary.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-        ("GRID",(0,0),(-1,-1),0.4,colors.grey),
-        ("ALIGN",(1,1),(-1,-1),"CENTER"),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE")
-    ]))
-    story.append(table_summary)
-    story.append(Spacer(1,12))
-    """
+
     
     from reportlab.lib.pagesizes import A4
 
@@ -3745,8 +3421,8 @@ if __name__ == "__main__":
     
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
-    """
     
+
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
@@ -3900,11 +3576,11 @@ if __name__ == "__main__":
     # génération du fichier CSV combiné des haplotypes
     run_combined_haplotypes()
     
-    """
+    
     # Lancement generate_final_report_by_site
     generate_final_report_by_site()
     
-    
+     # Lancement generate_final_report_by_site avec MIX compté comme Mutant
     generate_final_report_by_site_0()
 
     total_elapsed = time.time() - global_start
