@@ -3011,7 +3011,7 @@ def generate_final_report_by_site(
 
 
 
-def generate_final_report_by_site_0(
+def generate_final_report_by_site_MT_MIX(
     reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
     combined_hap_file="output/haplotypes/Combined_Haplotypes.csv",
     vaf_file="output/SVAF_merge/SVAF_merge.csv",
@@ -3581,7 +3581,7 @@ if __name__ == "__main__":
     generate_final_report_by_site()
     
      # Lancement generate_final_report_by_site avec MIX compté comme Mutant
-    generate_final_report_by_site_0()
+    generate_final_report_by_site_MT_MIX()
 
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
