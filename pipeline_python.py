@@ -2268,85 +2268,6 @@ def filter_empty_pos(input_file = "output/Summary_merge_filtered/filtered_summar
 
 
 
-def run_haplotypes_1(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
-                    output_dir="output/haplotypes", logs_dir="logs"):
-    """
-    Construit des haplotypes pour chaque échantillon.
-    Si une position est WT, la première lettre du SNP est utilisée.
-    Si une mutation est présente, la dernière lettre du SNP est utilisée.
-    """
-
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    Path(logs_dir).mkdir(parents=True, exist_ok=True)
-    log_file = Path(logs_dir) / "Haplotypes.log"
-
-    with open(log_file, "w") as log:
-        log.write(f"\n=== Compute Haplotypes Log ===\nDate : {time.ctime()}\n")
-        log.write(f"Entrée : {input_file}\nSortie : {output_dir}\n")
-
-        df = pd.read_csv(input_file)
-        log.write(f"Fichier lu avec {len(df)} lignes.\n")
-
-        df['Sample'] = df['LSDB_Sequence_ID'].astype(str)
-        
-        
-        # === Détection automatique des gènes selon les préfixes de colonnes ===
-        gene_groups = {
-            "DHPS": [c for c in df.columns if re.search(r'I431V|S436A|A437G|K540E|A581G|A613S|A613T', c)],
-            "DHFR": [c for c in df.columns if re.search(r'N51I|C59R|S108N', c)],
-            "CRT":  [c for c in df.columns if re.search(r'C72S|V73V|M74I|N75E|K76T|A220S|Q271E|N326S|C350R|R371I|I356T', c)],
-            "MDR":  [c for c in df.columns if re.search(r'N86Y|Y184F|D1246Y|N1042D|S1034C', c)],
-            "CytB": [c for c in df.columns if re.search(r'I258M|Y268C|Y268S', c)],
-            "K13":  [c for c in df.columns if re.search(r'A481V|A578S|A675V|C469Y|C580Y|D584V|F446I|G449A|G538V|I543T|M476I|N458Y|N537I|P441L|P553L|P574L|R539T|R561H|V568G|Y493H', c)]
-        }
-
-        haplo_data = []
-
-        for sample, group in tqdm(df.groupby("Sample"), desc="Construction des haplotypes"):
-            sample_haplo = {"Sample": sample}
-
-            for gene, positions in gene_groups.items():
-                alleles = []
-
-                for snp in positions:
-                    # colonne correspondant au SNP exact
-                    snp_cols = [col for col in df.columns if snp in col]
-                    if not snp_cols:
-                        continue
-
-                    col = snp_cols[0]
-                    values = group[col].dropna().unique()
-
-                    if len(values) == 0:
-                        alleles.append("")  # pas de donnée
-                        continue
-
-                    val = values[0]
-
-                    if val == "WT":
-                        # prendre la première lettre du SNP
-                        alleles.append(snp[0])
-                    elif val == "NA" or val == "MIX" :
-                        alleles.append("")
-                    else:
-                        # mutation : dernière lettre
-                        alleles.append(snp[-1])
-
-                # construire haplotype par gène
-                haplo = "".join(alleles)
-                sample_haplo[gene] = haplo if haplo.strip("-") != "" else "Null(NAN)"
-
-            haplo_data.append(sample_haplo)
-
-        haplo_df = pd.DataFrame(haplo_data)
-        out_path = Path(output_dir) / "haplotypes_summary.csv"
-        haplo_df.to_csv(out_path, index=False)
-
-        log.write(f"Haplotype généré : {out_path}\n")
-        log.write("=== Fin ===\n")
-
-    print(f"\n Haplotype généré avec succès : {out_path}")
-
 
 def run_haplotypes(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv", 
                    output_dir="output/haplotypes", logs_dir="logs"):
@@ -2702,10 +2623,10 @@ def generate_final_report_by_site(
     # ============================
     # Affichage dans le PDF
     # ============================
-
+    """
     story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
-    
+    """
     from reportlab.lib.pagesizes import A4
 
     # --- Calcul dynamique des largeurs ---
@@ -3148,11 +3069,11 @@ def generate_final_report_by_site_MT_MIX(
         row.append(int(total_value))
         summary_data.append(row)
 
-    
+    """
     # --- Affichage dans le PDF ---
     story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
-
+    """
     
     from reportlab.lib.pagesizes import A4
 
@@ -3422,7 +3343,7 @@ if __name__ == "__main__":
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
     
-
+    """
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
@@ -3576,7 +3497,7 @@ if __name__ == "__main__":
     # génération du fichier CSV combiné des haplotypes
     run_combined_haplotypes()
     
-    
+    """
     # Lancement generate_final_report_by_site
     generate_final_report_by_site()
     
