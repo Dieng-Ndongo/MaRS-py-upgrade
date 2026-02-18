@@ -60,7 +60,7 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 
 ```text
 HOME/
-└── pipeline/
+└── pipeline/                     # Dossier principal
     ├── data/                     # Données brutes (FASTQ)
     │   └── *.fastq.gz
     │
