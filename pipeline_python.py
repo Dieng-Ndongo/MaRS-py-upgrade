@@ -2623,10 +2623,12 @@ def generate_final_report_by_site(
     # ============================
     # Affichage dans le PDF
     # ============================
+    
     """
     story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
     """
+
     # --- Calcul dynamique des largeurs ---
     page_width = A4[0] - 2*30  # largeur A4 moins marges
     n_cols = len(sites) + 2    # "Metric" + sites + "Total"
@@ -3073,8 +3075,6 @@ def generate_final_report_by_site_MT_MIX(
     story.append(Spacer(1, 6))
     """
     
-    from reportlab.lib.pagesizes import A4
-
     # --- Calcul dynamique des largeurs ---
     page_width = A4[0] - 2*30  # largeur A4 moins marges
     n_cols = len(sites) + 2    # "Metric" + sites + "Total"
@@ -3341,7 +3341,7 @@ if __name__ == "__main__":
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
     
-    """
+    
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
@@ -3495,7 +3495,7 @@ if __name__ == "__main__":
     # génération du fichier CSV combiné des haplotypes
     run_combined_haplotypes()
     
-    """
+
     # Lancement generate_final_report_by_site
     generate_final_report_by_site()
     
