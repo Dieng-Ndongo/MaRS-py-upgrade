@@ -2627,8 +2627,6 @@ def generate_final_report_by_site(
     story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
     story.append(Spacer(1, 6))
     """
-    from reportlab.lib.pagesizes import A4
-
     # --- Calcul dynamique des largeurs ---
     page_width = A4[0] - 2*30  # largeur A4 moins marges
     n_cols = len(sites) + 2    # "Metric" + sites + "Total"
