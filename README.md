@@ -30,8 +30,10 @@ Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**
 ### Nomenclature AMD_ID
 
 ![Nomenclature AMD_ID pour les échantillons individuels](images/individual_AMD_ID.png)
+**Exemple :** 23SNKG28A0004PfB4721_KG48D28_S8_L001_R1_001.fastq.gz 
 
 ![Nomenclature AMD_ID pour les échantillons poolés](images/pooled_AMD_ID.png)
+**Exemple :** 23SNKG00I033P10B4721_POOL33_S51_L001_R1_001.fastq.gz
 
 ---
 
@@ -58,7 +60,7 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 
 ```text
 HOME/
-└── pipeline/
+└── pipeline/                     # Dossier principal
     ├── data/                     # Données brutes (FASTQ)
     │   └── *.fastq.gz
     │
