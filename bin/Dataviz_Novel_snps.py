@@ -263,8 +263,9 @@ if not SNPs_NS.empty:
     for label in ax.get_yticklabels():
         if label.get_text().startswith("SITE"):
             label.set_fontweight("bold")
-
-    ax.set_ylabel("")
+    
+    ax.legend(ncol = 2, loc = 'lower right')
+    ax.set_ylabel("SNPs")
     ax.set_xlabel("SNP ratio")
     ax.legend(loc=(1, 0))
 
@@ -303,10 +304,11 @@ if not SNPs_S.empty:
         if label.get_text().startswith("SITE"):
             label.set_fontweight("bold")
 
-    ax.set_ylabel("")
+    ax.legend(ncol = 2, loc = 'lower right')
+    ax.set_ylabel("SNPs")
     ax.set_xlabel("SNP ratio")
     ax.legend(loc=(1, 0))
-
+    
     plt.tight_layout()
     plt.savefig('SNPs-Novel-synonymous.pdf')
     plt.close()

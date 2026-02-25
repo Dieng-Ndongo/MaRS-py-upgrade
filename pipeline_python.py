@@ -3501,7 +3501,7 @@ if __name__ == "__main__":
     
      # Lancement generate_final_report_by_site avec MIX compté comme Mutant
     generate_final_report_by_site_MT_MIX()
-
+    
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
     print("[PIPELINE] Fin du pipeline.")   
