@@ -2091,8 +2091,6 @@ def run_DataViz_Novel_snps(input_dir="output/Summary/Novel_snps.csv", out_dir="o
 
 
 
-
-
 def run_replace_mutations(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
                             output_dir="output/haplotypes", logs_dir="logs"):
     """
@@ -3340,7 +3338,7 @@ if __name__ == "__main__":
     
     print("[PIPELINE] Début des l'analyses.............")
     global_start = time.time()
-    
+
     
     # Lancement QC_pre_trimming
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
