@@ -15,7 +15,16 @@ st.set_page_config(
 )
 
 # ========================
-# STYLE CSS PERSONNALISÉ
+# INIT SESSION STATE
+# ========================
+if "pipeline_done" not in st.session_state:
+    st.session_state["pipeline_done"] = False
+
+if "zip_created" not in st.session_state:
+    st.session_state["zip_created"] = False
+
+# ========================
+# STYLE CSS
 # ========================
 st.markdown("""
 <style>
@@ -28,12 +37,6 @@ st.markdown("""
         font-size: 18px;
         color: #888;
     }
-    .success-box {
-        padding: 10px;
-        border-radius: 10px;
-        background-color: #e8f5e9;
-        border-left: 5px solid #4CAF50;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -45,7 +48,7 @@ st.markdown('<div class="subtitle">Pipeline FASTQ → Rapport automatisé</div>'
 st.divider()
 
 # ========================
-# UPLOAD DES FASTQ
+# UPLOAD
 # ========================
 col1, col2 = st.columns([2, 1])
 
@@ -82,6 +85,9 @@ with col2:
 # ========================
 if run_pipeline:
 
+    st.session_state["pipeline_done"] = False
+    st.session_state["zip_created"] = False
+
     st.divider()
     st.subheader("🚀 Exécution du pipeline")
 
@@ -109,8 +115,6 @@ if run_pipeline:
 
     for line in iter(process.stdout.readline, ""):
         logs += line
-
-        # Logs stylés
         log_container.code("\n".join(logs.splitlines()[-15:]), language="bash")
 
         match = step_pattern.search(line)
@@ -120,7 +124,6 @@ if run_pipeline:
 
             if total > 0:
                 progress = min(current / total, 1.0)
-
                 progress_bar.progress(progress)
 
                 percent = int(progress * 100)
@@ -131,39 +134,51 @@ if run_pipeline:
                 """)
 
     process.wait()
-
-    info_box.empty()  # ✅ enlève le message "en cours"
+    info_box.empty()
 
     if process.returncode == 0:
         progress_bar.progress(1.0)
         status_text.success("✅ Pipeline terminé avec succès !")
-        st.balloons()  # optionnel 🎉
+        st.session_state["pipeline_done"] = True
+        st.balloons()
     else:
         status_text.error("❌ Une erreur est survenue.")
 
-# ========================
-# TELECHARGEMENT
-# ========================
 output_dir = Path.home() / "pipeline" / "output"
 zip_path = Path.home() / "pipeline" / "resultats_pipeline.zip"
 
-if output_dir.exists():
+if "download_ready" not in st.session_state:
+    st.session_state["download_ready"] = False
+
+if output_dir.exists() and st.session_state.get("pipeline_done"):
+
     st.divider()
     st.subheader("📥 Résultats")
 
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for root, dirs, files in os.walk(output_dir):
-            for file in files:
-                zipf.write(
-                    os.path.join(root, file),
-                    arcname=os.path.relpath(os.path.join(root, file), output_dir)
-                )
+    # 1️⃣ Créer ZIP automatiquement (UNE SEULE FOIS)
+    if not st.session_state.get("zip_created", False):
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            for root, dirs, files in os.walk(output_dir):
+                for file in files:
+                    zipf.write(
+                        os.path.join(root, file),
+                        arcname=os.path.relpath(os.path.join(root, file), output_dir)
+                    )
 
-    with open(zip_path, "rb") as f:
-        st.download_button(
-            "⬇ Télécharger les résultats",
-            f,
-            file_name="resultats_pipeline.zip",
-            use_container_width=True
-        )
+        st.session_state["zip_created"] = True
 
+    # 2️⃣ Bouton normal (NE déclenche pas download)
+    if st.button("⬇ Télécharger les résultats"):
+
+        st.session_state["download_ready"] = True
+
+    # 3️⃣ Download seulement après clic utilisateur
+    if st.session_state["download_ready"] and zip_path.exists():
+
+        with open(zip_path, "rb") as f:
+            st.download_button(
+                "📦 Cliquer pour télécharger le fichier",
+                f,
+                file_name="resultats_pipeline.zip",
+                use_container_width=True
+            )

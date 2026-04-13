@@ -31,6 +31,18 @@ import json
 # Debut du pipeline
 #======================================================================
 
+
+TOTAL_STEPS = 35  # ajuste si besoin
+step = 1
+
+def log_step(message):
+    global step
+    print(f"Step {step}/{TOTAL_STEPS}: {message}")
+    step += 1
+
+
+
+
 def QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming", logs_dir="logs"):
     """
     Exécute FastQC sur tous les fichiers .fastq.gz dans input_dir
@@ -225,6 +237,7 @@ def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="
     print("********************** TRIMMING : Fin *****************************")
 
     return trimmed_files
+
 
 
 def QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_post_trimming", logs_dir="logs"):
@@ -1536,7 +1549,8 @@ def compute_sample_vaf(input_dir="output/CSV_merge", output_dir="output/Sample_V
             'codon',
             'Confidence',
             'Annotation',
-            'AVG_COV'
+            'AVG_COV',
+            'AVG_VAF',
         ]].copy()
 
         # Ajout des métadonnées
@@ -2512,13 +2526,13 @@ def generate_final_report_by_site(
             df_svaf = pd.read_csv(files[0])
         except Exception:
             return 0.0
-        if "AA_change" not in df_svaf.columns or "SVAF" not in df_svaf.columns:
+        if "AA_change" not in df_svaf.columns or "AVG_VAF" not in df_svaf.columns:
             return 0.0
         row = df_svaf.loc[df_svaf["AA_change"] == snp]
         if row.empty:
             return 0.0
         try:
-            return float(row.iloc[0]["SVAF"])
+            return float(row.iloc[0]["AVG_VAF"])
         except Exception:
             return 0.0
 
@@ -2730,14 +2744,14 @@ def generate_final_report_by_site(
                 table_data_wrapped = []
                 # Ajouter l'entête avec style_header
                 table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP", "N of sample", "Wild-type (N, %)", 
-                                                                                        "Mutant (N, %)", "%VAF_Mutant", 
-                                                                                        "Mix (N, %)", "%VAF_Mix"]])
+                                                                                        "Mutant (N, %)", "%VAF_MT", 
+                                                                                        "Mixte (N, %)", "%VAF_MIX"]])
 
                 snp_values_for_plot = []
 
                 for snp in snps:
                     df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
-                    df_snp["SVAF"] = df_snp["LSDB_Sequence_ID"].apply(lambda x: load_svaf(x, snp))
+                    df_snp["AVG_VAF"] = df_snp["LSDB_Sequence_ID"].apply(lambda x: load_svaf(x, snp))
 
                     # Masques
                     mask_wt  = df_snp[snp] == "WT"
@@ -2759,8 +2773,8 @@ def generate_final_report_by_site(
                     pct_mix = (n_mix / n_total * 100) if n_total > 0 else 0
 
                     # Numérateurs VAF
-                    num_mut = (df_snp.loc[mask_mut, "SVAF"] * df_snp.loc[mask_mut, "__WEIGHT__"]).sum()
-                    num_mix = (df_snp.loc[mask_mix, "SVAF"] * df_snp.loc[mask_mix, "__WEIGHT__"]).sum()
+                    num_mut = (df_snp.loc[mask_mut, "AVG_VAF"] * df_snp.loc[mask_mut, "__WEIGHT__"]).sum()
+                    num_mix = (df_snp.loc[mask_mix, "AVG_VAF"] * df_snp.loc[mask_mix, "__WEIGHT__"]).sum()
 
                     # Dénominateurs VAF
                     den_mut = df_snp.loc[mask_mut | mask_wt, "__WEIGHT__"].sum()
@@ -2970,13 +2984,13 @@ def generate_final_report_by_site_MT_MIX(
             df_svaf = pd.read_csv(files[0])
         except Exception:
             return 0.0
-        if "AA_change" not in df_svaf.columns or "SVAF" not in df_svaf.columns:
+        if "AA_change" not in df_svaf.columns or "AVG_VAF" not in df_svaf.columns:
             return 0.0
         row = df_svaf.loc[df_svaf["AA_change"] == snp]
         if row.empty:
             return 0.0
         try:
-            return float(row.iloc[0]["SVAF"])
+            return float(row.iloc[0]["AVG_VAF"])
         except Exception:
             return 0.0
 
@@ -3165,13 +3179,13 @@ def generate_final_report_by_site_MT_MIX(
                 style_header = ParagraphStyle(name='header', alignment=1, fontSize=9, leading=10)
 
                 table_data_wrapped = []
-                table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP","N of sample","Wild-type (N, %)","Mutant (N, %)","%VAF_Mutant"]])
+                table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP","N of sample","Wild-type (N, %)","Mutant (N, %)","%VAF_MT"]])
 
                 snp_values_for_plot = []
 
                 for snp in snps:
                     df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
-                    df_snp["SVAF"] = df_snp["LSDB_Sequence_ID"].apply(lambda x: load_svaf(x, snp))
+                    df_snp["AVG_VAF"] = df_snp["LSDB_Sequence_ID"].apply(lambda x: load_svaf(x, snp))
 
                     mask_wt  = df_snp[snp] == "WT"
                     mask_mut = df_snp[snp].isin(["MT","MIX"])  # <-- MIX compté comme MT
@@ -3184,7 +3198,7 @@ def generate_final_report_by_site_MT_MIX(
                     pct_wt = (n_wt / n_total * 100) if n_total > 0 else 0
                     pct_mut = (n_mut / n_total * 100) if n_total > 0 else 0
 
-                    num_mut = (df_snp.loc[mask_mut, "SVAF"] * df_snp.loc[mask_mut, "__WEIGHT__"]).sum()
+                    num_mut = (df_snp.loc[mask_mut, "AVG_VAF"] * df_snp.loc[mask_mut, "__WEIGHT__"]).sum()
                     den_mut = df_snp.loc[mask_mut | mask_wt, "__WEIGHT__"].sum()
                     vaf_mut = (num_mut / den_mut * 100) if den_mut > 0 else 0
 
@@ -3328,7 +3342,6 @@ def generate_final_report_by_site_MT_MIX(
 
 
 
-
 if __name__ == "__main__":
     
     #======================================================================
@@ -3340,57 +3353,71 @@ if __name__ == "__main__":
     global_start = time.time()
 
     
+
     # Lancement QC_pre_trimming
+    log_step("QC pré-trimming")
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
-
+"""
     # Lancement MultiQC_pre_trimming
+    log_step("QC pré-trimming")
     MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html")
     
 
     # Lancement Trimming avec BBduk
+    log_step("Trimming")
     trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="pf_3D7_Ref/adapters.fa")
 
 
     # Lancement QC_post_trimming
+    log_step("QC post-trimming")
     QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_post_trimming")
 
 
     # Lancement MultiQC_post_trimming
+    log_step("MultiQC post-trimming")
     MultiQC_post_trimming(output_dir="output/QC_post_trimming", report_name="MultiQC_post_trimming_report.html")
 
     
     # Lancement bwa_index
+    log_step("BWA index")
     reference = "pf_3D7_Ref/mars_pf_ref.fasta"  # chemin vers la référence
     bwa_index(reference)
 
     
     # Lancement bwa_align
+    log_step("BWA align")
     bwa_align()
 
 
     # Lancement picard_add_readgroups
+    log_step("Picard add readgroups")
     picard_add_readgroups()
     
 
     # lancement get_bed
+    log_step("Get BED")
     get_bed()
     
     
     # Lancement VCF call
+    log_step("VCF call")
     vcf_call_all_samples()
 
     
     # Lancement la creation de la base de donnee
+    log_step("Build snpEff database")
     build_snpeff_db(db_name="pf_3D7_snpEff_db", 
         snpeff_config="pf_3D7_snpEff_db",
         output_dir="output")
         
     # Lancement l'annotation
+    log_step("Annotate VCFs")
     annotated = annotate_all_vcfs()
 
     
     # Lancement vartype
+    log_step("Run Vartype")
     BASE_DIR = Path(__file__).resolve().parent
     env_path = BASE_DIR / "miniconda3" / "envs" / "pipeline_env"
     logs_dir = BASE_DIR / "logs"
@@ -3407,11 +3434,13 @@ if __name__ == "__main__":
     
         
     # Lancement coverage
+    log_step("Coverage")
     get_coverage(bam_dir="output/bam_picard_readgroups",
         output_dir="output/samtools_coverage", logs_dir="logs")
 
 
     # Lancement wt_coverage
+    log_step("WT Coverage")
     ref = "pf_3D7_Ref/mars_pf_ref.fasta"
     gff = "pf_3D7_Ref/mars_pf.gff"
     voi = "pf_3D7_Ref/voinew3.csv"
@@ -3422,85 +3451,108 @@ if __name__ == "__main__":
 
 
     # Lancement Trim_Stats
+    log_step("Trim_Stats")
     trim_stats_results = run_trim_stats()
     print(f"Trim_Stats terminé pour {len(trim_stats_results)} échantillons.\n")
 
 
     # Lancement run_reads_merge
+    log_step("Run reads merge")
     merged_file = run_reads_merge()
     print(f"Matrice finale de lecture générée : {merged_file}")
     
 
     
     # Lancement run_vcf_to_df
+    log_step("Run VCF to DataFrame")
     run_vcf_to_df()
     
     
     # Lancement run_csv_merge_with_report
+    log_step("Run CSV merge with report")
     run_csv_merge_with_report()
     
     
     # Lancement compute_sample_vaf
+    log_step("Compute sample VAF")
     compute_sample_vaf()
     
     # Lancement run_SVAF_merge
+    log_step("Run SVAF merge")
     run_SVAF_merge()
     
-    
+
     #Lancement run_snpfilter
+    log_step("Run SNP filter")
     run_snpfilter()
     
     
     #Lancement run_summary_merge
+    log_step("Run summary merge")
     run_summary_merge()
 
 
     # Lancement run_introns_merge
+    log_step("Run introns merge")
     run_introns_merge()
     
     
     # Lancement run_summary
+    log_step("Run summary")
     run_summary()
     
     
     # Lancement run_dataviz_reportable_snps
+    log_step("Run DataViz reportable SNPs")
     run_dataviz_reportable_snps()
     
     
     # Lancement run_dataviz_novel_snps
+    log_step("Run DataViz novel SNPs")
     run_DataViz_Novel_snps()
     
     
     # Lancement run_replace_mutations
+    log_step("Run replace mutations")
     run_replace_mutations()
     
     
     # Lancement filtered_summary_merge
+    log_step("Run filtered summary merge")
     filtered_summary_merge()
     
     
     # Lancement filter_empty_pos
+    log_step("Run filter empty positions")
     filter_empty_pos()
     
     # Lancement run_haplotypes
+    log_step("Run haplotypes")
     run_haplotypes()
     
     
     # Lancement filter_haplotypes
+    log_step("Run filter haplotypes")
     filter_haplotypes()
     
     
     # génération du fichier CSV combiné des haplotypes
+    log_step("Run combined haplotypes")
     run_combined_haplotypes()
     
 
     # Lancement generate_final_report_by_site
+    log_step("Generate final report by site")
     generate_final_report_by_site()
     
-     # Lancement generate_final_report_by_site avec MIX compté comme Mutant
+    # Lancement generate_final_report_by_site avec MIX compté comme Mutant
+    log_step("Generate final report by site (MIX as MT)")
     generate_final_report_by_site_MT_MIX()
     
+    
+
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
     print("[PIPELINE] Fin du pipeline.")   
-    
+
+"""
