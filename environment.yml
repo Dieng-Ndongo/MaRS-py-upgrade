@@ -38,6 +38,7 @@ dependencies:
   - pandas 
   - numpy 
   - pyfaidx 
+  - xlrd
   - tqdm
   - plotly
   - matplotlib
@@ -48,4 +49,3 @@ dependencies:
 # Variables d'environnement pour Java
 variables:
    JAVA_HOME: $CONDA_PREFIX
-
