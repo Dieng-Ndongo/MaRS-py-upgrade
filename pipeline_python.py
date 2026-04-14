@@ -3358,7 +3358,7 @@ if __name__ == "__main__":
     log_step("QC pré-trimming")
     QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
 
-"""
+
     # Lancement MultiQC_pre_trimming
     log_step("QC pré-trimming")
     MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html")
@@ -3555,4 +3555,3 @@ if __name__ == "__main__":
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
     print("[PIPELINE] Fin du pipeline.")   
 
-"""
