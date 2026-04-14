@@ -8,7 +8,8 @@
 
 Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes ***pfcrt***, ***pfmdr1***,***pfk13***, ***pfdhfr*** et ***pfdhps***, utilisés comme marqueurs de résistance aux traitements antipaludiques.
 
-Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture lisible, reproductible et automatisée.
+Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture lisible, reproductible et automatisée. 
+Le pipeline peux etre utiliser via une interface graphique.
 
 ---
 
@@ -153,5 +154,12 @@ docker build -t bioinfo_pipeline .
 ```bash
 
 docker run --rm -it -v ~/pipeline:/app bioinfo_pipeline
+
+```
+**NB** Pour utiliser l'interface web executez cette commande
+
+```bash
+
+streamlit run app.py
 
 ```
