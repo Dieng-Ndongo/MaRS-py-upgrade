@@ -60,7 +60,8 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 
 ```text
 HOME/
-└── pipeline/                     # Dossier principal
+└── MaRS-py-upgrade/              # Dossier principal
+    |          
     ├── data/                     # Données brutes (FASTQ)
     │   └── *.fastq.gz
     │
@@ -134,11 +135,9 @@ newgrp docker
 
 ```bash
 
-mkdir -p ~/pipeline
-
-cd ~/pipeline
-
 git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade.git
+
+cd MaRS-py-upgrade
 
 ```
 ### 3. Construction de l'image docker
