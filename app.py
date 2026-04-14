@@ -169,16 +169,19 @@ if output_dir.exists() and st.session_state.get("pipeline_done"):
 
     # 2️⃣ Bouton normal (NE déclenche pas download)
     if st.button("⬇ Télécharger les résultats"):
-
         st.session_state["download_ready"] = True
-
+       
     # 3️⃣ Download seulement après clic utilisateur
     if st.session_state["download_ready"] and zip_path.exists():
 
         with open(zip_path, "rb") as f:
-            st.download_button(
+            downloaded = st.download_button(
                 "📦 Cliquer pour télécharger le fichier",
                 f,
                 file_name="resultats_pipeline.zip",
                 use_container_width=True
             )
+
+        # 🔥 RESET après téléchargement
+        if downloaded:
+            st.session_state["download_ready"] = False
