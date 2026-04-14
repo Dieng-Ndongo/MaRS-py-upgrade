@@ -87,6 +87,7 @@ HOME/
     ├── pipeline_python.py        # Script du pipeline  
     ├── environment.yml           # environment       
     ├── Dockerfile                # Fichier docker
+    ├── app.py                    # Script strimlit
     └── README.md                 # Fichier README
 
 ```
