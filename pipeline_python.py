@@ -27,6 +27,12 @@ from reportlab.platypus import Paragraph
 import json
 
 
+BASE_DIR = Path(__file__).resolve().parent
+
+def to_str_list(cmd):
+    return list(map(str, cmd))
+
+
 #======================================================================
 # Debut du pipeline
 #======================================================================
@@ -43,7 +49,7 @@ def log_step(message):
 
 
 
-def QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming", logs_dir="logs"):
+def QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "QC_pre_trimming", logs_dir=BASE_DIR / "logs"):
     """
     Exécute FastQC sur tous les fichiers .fastq.gz dans input_dir
     et enregistre les rapports dans output_dir.
@@ -82,7 +88,9 @@ def QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming", logs_
         # Boucle sur les fichiers avec barre de progression
         for fq in tqdm(fastq_files, desc="Exécution de FastQC", unit="fichier"):
             fq_name = os.path.basename(fq)
-            command = ["fastqc", fq, "--outdir", output_dir]
+            command = ["fastqc", fq, "--outdir", str(output_dir)]
+            command = to_str_list(command)
+
 
             lf.write(f"\n===== Traitement de {fq_name} =====\n")
             lf.write(f"Commande : {' '.join(command)}\n\n")
@@ -109,7 +117,7 @@ def QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming", logs_
 
 
 
-def MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html", logs_dir="logs"):
+def MultiQC_pre_trimming(output_dir=BASE_DIR / "output" / "QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html", logs_dir=BASE_DIR / "logs"):
     """
     Lance MultiQC sur le dossier de sortie (output_dir)
     et génère un rapport global.
@@ -121,10 +129,12 @@ def MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="Multi
     os.makedirs(logs_dir, exist_ok=True)
 
     # Fichier log global
-    log_file = os.path.join(logs_dir, "MultiQC_pre_trimming.log")
+    log_file = os.path.join(str(logs_dir), "MultiQC_pre_trimming.log")
 
     # Commande MultiQC
     command = ["multiqc", output_dir, "-o", output_dir, "-n", report_name, "--force"]
+    command = to_str_list(command)
+
 
     start_time = datetime.now()
     with open(log_file, "w") as lf:
@@ -159,7 +169,7 @@ def MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="Multi
 
 
 
-def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="pf_3D7_Ref/adapters.fa", logs_dir="logs"):
+def trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file=BASE_DIR / "pf_3D7_Ref" / "adapters.fa", logs_dir=BASE_DIR / "logs"):
     """
     Exécute BBduk pour le trimming des reads paired-end dans input_dir.
     Enregistre les sorties dans output_dir et un log global dans logs_dir.
@@ -177,10 +187,10 @@ def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="
     os.makedirs(logs_dir, exist_ok=True)
 
     # Fichier log 
-    log_file = os.path.join(logs_dir, f"trimming.log")
+    log_file = os.path.join(str(logs_dir), f"trimming.log")
 
-    reads_R1 = sorted(glob.glob(os.path.join(input_dir, "*_R1*.fastq*")))
-    reads_R2 = sorted(glob.glob(os.path.join(input_dir, "*_R2*.fastq*")))
+    reads_R1 = sorted(glob.glob(os.path.join(str(input_dir), "*_R1*.fastq*")))
+    reads_R2 = sorted(glob.glob(os.path.join(str(input_dir), "*_R2*.fastq*")))
 
     if not reads_R1 or not reads_R2:
         print(f"[WARNING] Aucun fichier R1 ou R2 trouvé dans {input_dir}")
@@ -205,9 +215,9 @@ def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="
             sample_id = os.path.basename(r1)
             sample_id = re.sub(r"_R1.*\.fastq.*", "", sample_id)
 
-            out_r1 = os.path.join(output_dir, f"{sample_id}_trimmed_R1.fastq.gz")
-            out_r2 = os.path.join(output_dir, f"{sample_id}_trimmed_R2.fastq.gz")
-            stats_file = os.path.join(output_dir, f"{sample_id}.stats.txt")
+            out_r1 = os.path.join(str(output_dir), f"{sample_id}_trimmed_R1.fastq.gz")
+            out_r2 = os.path.join(str(output_dir), f"{sample_id}_trimmed_R2.fastq.gz")
+            stats_file = os.path.join(str(output_dir), f"{sample_id}.stats.txt")
 
             cmd = [
                 "bbduk.sh", "-Xmx1g", "ktrim=r", "k=27", "hdist=1", "edist=0",
@@ -216,6 +226,9 @@ def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="
                 f"in={r1}", f"in2={r2}",
                 f"out={out_r1}", f"out2={out_r2}", f"stats={stats_file}"
             ]
+
+            cmd = to_str_list(cmd)
+
 
             lf.write(f"\n[INFO] Trimming de l'échantillon : {sample_id}\n")
             lf.write(f"Commande : {' '.join(cmd)}\n")
@@ -240,7 +253,7 @@ def trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="
 
 
 
-def QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_post_trimming", logs_dir="logs"):
+def QC_post_trimming(input_dir=BASE_DIR / "output" / "trimmed_reads", output_dir=BASE_DIR / "output" / "QC_post_trimming", logs_dir=BASE_DIR / "logs"):
     """
     Exécute FastQC sur tous les fichiers .fastq.gz dans input_dir
     et enregistre les rapports dans output_dir + un log global dans logs_dir.
@@ -278,6 +291,7 @@ def QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_pos
             lf.write(f"\n[INFO] Analyse de : {file_name}\n")
 
             command = ["fastqc", fq, "--outdir", output_dir]
+            command = to_str_list(command)
             lf.write(f"Commande : {' '.join(command)}\n")
 
             try:
@@ -297,7 +311,7 @@ def QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_pos
 
 
 
-def MultiQC_post_trimming(output_dir="output/QC_post_trimming", report_name="MultiQC_post_trimming_report.html", logs_dir="logs"):
+def MultiQC_post_trimming(output_dir=BASE_DIR / "output" / "QC_post_trimming", report_name="MultiQC_post_trimming_report.html", logs_dir=BASE_DIR / "logs"):
     """
     Lance MultiQC sur le dossier de sortie (output_dir),
     génère un rapport global et crée un log complet dans logs_dir.
@@ -318,6 +332,7 @@ def MultiQC_post_trimming(output_dir="output/QC_post_trimming", report_name="Mul
         lf.write(f"Dossier d’analyse : {output_dir}\n\n")
 
         command = ["multiqc", output_dir, "-o", output_dir, "-n", report_name, "--force"]
+        command = to_str_list(command)
         lf.write(f"[INFO] Commande exécutée : {' '.join(command)}\n\n")
 
         print(f"[PIPELINE] Démarrage de l’étape MultiQC_post_trimming sur le dossier {output_dir}\n")
@@ -356,7 +371,7 @@ def run_cmd(cmd, log_file):
             lf.write(f"[ERROR] Échec de la commande : {e}\n")
             raise
 
-def bwa_index(ref, output_dir="output/index_ref", logs_dir="logs"):
+def bwa_index(ref, output_dir=BASE_DIR / "output" / "index_ref", logs_dir=BASE_DIR / "logs"):
     """
     Indexation de la séquence de référence :
       - BWA index
@@ -410,6 +425,8 @@ def bwa_index(ref, output_dir="output/index_ref", logs_dir="logs"):
                 f"O={dict_output}"
             ], log_file)
 
+
+
     total_time = time.time() - start_time
     print(f"[PIPELINE] Étape bwa_index terminée en {total_time/60:.2f} minutes")
     print(f"[INFO] Log global disponible ici : {log_file}")
@@ -417,7 +434,7 @@ def bwa_index(ref, output_dir="output/index_ref", logs_dir="logs"):
 
 
 
-def bwa_index_0(ref, output_dir="output/index_ref", local_picard_jar="tools/picard.jar", logs_dir="logs"):
+def bwa_index_0(ref, output_dir=BASE_DIR / "output" / "index_ref", local_picard_jar=BASE_DIR / "tools" / "picard.jar", logs_dir=BASE_DIR / "logs"):
     """
     Indexation de la séquence de référence :
       - BWA index
@@ -477,8 +494,8 @@ def bwa_index_0(ref, output_dir="output/index_ref", local_picard_jar="tools/pica
     print("********************** BWA_INDEX : Fin *****************************")
 
 
-def bwa_align(input_dir="output/trimmed_reads", sam_dir="output/sam_files", bam_dir="output/bam_files", 
-                reference="pf_3D7_Ref/mars_pf_ref.fasta", logs_dir="logs"):
+def bwa_align(input_dir=BASE_DIR / "output" / "trimmed_reads", sam_dir=BASE_DIR / "output" / "sam_files", bam_dir=BASE_DIR / "output" / "bam_files", 
+                reference=BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta", logs_dir=BASE_DIR / "logs"):
     """
     Aligne des reads paired-end sur un génome de référence avec BWA-MEM,
     produit SAM et BAM trié et indexé.
@@ -519,6 +536,8 @@ def bwa_align(input_dir="output/trimmed_reads", sam_dir="output/sam_files", bam_
         # Étape 1 : SAM
         with open(log_file, "a") as lf:
             cmd_sam = ["bwa", "mem", "-t", "4", reference, str(r1_file), str(r2_file)]
+            cmd_sam = to_str_list(cmd_sam)
+
             lf.write(f"\n[INFO] Génération SAM pour {sample_name}\n")
             lf.write(f"Commande : {' '.join(cmd_sam)}\n")
             try:
@@ -543,6 +562,7 @@ def bwa_align(input_dir="output/trimmed_reads", sam_dir="output/sam_files", bam_
         # Étape 3 : BAM index
         with open(log_file, "a") as lf:
             cmd_index = ["samtools", "index", str(bam_file)]
+            cmd_index = to_str_list(cmd_index)
             lf.write(f"\n[INFO] Index BAM pour {sample_name}\n")
             lf.write(f"Commande : {' '.join(cmd_index)}\n")
             try:
@@ -559,8 +579,8 @@ def bwa_align(input_dir="output/trimmed_reads", sam_dir="output/sam_files", bam_
 
 
 
-def picard_add_readgroups(input_dir="output/sam_files", output_dir="output/bam_picard_readgroups", 
-                             local_picard_jar="tools/picard.jar", logs_dir="logs"):
+def picard_add_readgroups(input_dir=BASE_DIR / "output" / "sam_files", output_dir=BASE_DIR / "output" / "bam_picard_readgroups", 
+                             local_picard_jar=BASE_DIR / "tools" / "picard.jar", logs_dir=BASE_DIR / "logs"):
     """
     Ajoute les read groups à tous les fichiers SAM d'un dossier avec Picard AddOrReplaceReadGroups.
     Log global dans logs_dir, affichage minimal dans le terminal.
@@ -626,7 +646,7 @@ def picard_add_readgroups(input_dir="output/sam_files", output_dir="output/bam_p
 
 
 
-def get_bed(input_dir="pf_3D7_Ref", output_dir="output/BED", bed_name="mars_genes.bed", logs_dir="logs"):
+def get_bed(input_dir=BASE_DIR / "pf_3D7_Ref", output_dir=BASE_DIR / "output" / "BED", bed_name="mars_genes.bed", logs_dir=BASE_DIR / "logs"):
     """
     Convertit tous les fichiers GFF d'un dossier en fichiers BED contenant uniquement les gènes.
     Les sorties (stdout, stderr) sont enregistrées dans un fichier .log.
@@ -673,8 +693,8 @@ def get_bed(input_dir="pf_3D7_Ref", output_dir="output/BED", bed_name="mars_gene
 
 
 
-def vcf_call_all_samples(bam_dir="output/bam_picard_readgroups", ref="output/index_ref/mars_pf_ref.fasta", bed_file="output/BED/mars_pf_mars_genes.bed",
-                            output_dir="output/vcf_files", logs_dir="logs"):
+def vcf_call_all_samples(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups", ref=BASE_DIR / "output" / "index_ref" / "mars_pf_ref.fasta", bed_file=BASE_DIR / "output" / "BED" / "mars_pf_mars_genes.bed",
+                            output_dir=BASE_DIR / "output" / "vcf_files", logs_dir=BASE_DIR / "logs"):
     """
     Appelle les variants pour tous les échantillons dans bam_dir.
     Génère pour chaque échantillon les fichiers VCF : samtools, Freebayes, GATK, VarDict.
@@ -716,6 +736,7 @@ def vcf_call_all_samples(bam_dir="output/bam_picard_readgroups", ref="output/ind
                 # Indexation BAM
                 subprocess.run(["samtools", "index", str(bam)],
                                stdout=lf, stderr=lf, text=True, check=True)
+                
 
                 # Samtools variant calling
                 subprocess.run(["bcftools", "mpileup", "-O", "b", "-d", "10000", "-o", str(mpileup_file),
@@ -764,114 +785,122 @@ def vcf_call_all_samples(bam_dir="output/bam_picard_readgroups", ref="output/ind
 
 
 
-def build_snpeff_db(db_name, snpeff_config, output_dir=None):
+def build_snpeff_db(db_name, snpeff_config, output_dir=BASE_DIR / "output"):
     """
-    Construit une base de données snpEff en utilisant snpEff installé via conda.
-    
-    Arguments :
-        db_name : nom de la base de données
-        snpeff_config : répertoire contenant snpEff.config et genes.gbk
-        output_dir : dossier de sortie (par défaut : répertoire courant)
+    Construit une base de données snpEff compatible avec le mode -genbank.
     """
+
     start_time = time.time()
     step_name = "build_snpeff_db"
 
-    # Création du dossier de logs
-    log_dir = Path("logs")
+    # 🔥 Assurer que db_name est un nom simple
+    db_name = Path(db_name).name
+
+    # 📁 Logs
+    log_dir = BASE_DIR / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{step_name}.log"
 
+    # 📁 Dossier principal DB
+    db_dir = Path(output_dir) / db_name
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    # 🔥 STRUCTURE QUI MARCHE AVEC snpEff
+    inner_db_dir = db_dir / db_name
+    inner_db_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[PIPELINE] Démarrage {step_name}")
+
     with open(log_file, "w") as lf:
-        print(f"[PIPELINE] Démarrage de l’étape {step_name}")
-        lf.write(f"===== Lancement de l’étape {step_name} =====\n")
+        lf.write(f"===== {step_name} =====\n")
 
-        if output_dir is None:
-            output_dir = os.getcwd()
-        db_dir = Path(output_dir) / db_name 
-        inner_db_dir = db_dir / db_name
-
-        # Création des répertoires
-        inner_db_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copier les fichiers nécessaires
+        # 📥 Fichiers sources
         config_src = Path(snpeff_config) / "snpEff.config"
         gbk_src = Path(snpeff_config) / "genes.gbk"
 
+        # 🔍 Vérifications
+        if not config_src.exists():
+            raise FileNotFoundError(f"snpEff.config introuvable : {config_src}")
+
+        if not gbk_src.exists():
+            raise FileNotFoundError(f"genes.gbk introuvable : {gbk_src}")
+
+        # 📁 Destinations
         config_dst = db_dir / "snpEff.config"
         gbk_dst = inner_db_dir / "genes.gbk"
 
+        # 📥 Copier
         shutil.copy(config_src, config_dst)
         shutil.copy(gbk_src, gbk_dst)
 
-        # Commande snpEff
+        # 🔥 Commande snpEff (IMPORTANT)
         cmd = [
             "snpEff",
             "build",
-            "-c", "snpEff.config",
-            "-genbank", "-v", db_name
+            "-c", "snpEff.config",   # 🔥 PAS chemin absolu
+            "-genbank",
+            "-v",
+            db_name
         ]
 
-        lf.write(f"[INFO] Commande exécutée : {' '.join(cmd)}\n")
+        cmd = list(map(str, cmd))
 
-        # Barre de progression
-        with tqdm(total=1, desc="Construction de la base snpEff", ncols=100) as pbar:
-            try:
-                subprocess.run(cmd, cwd=str(db_dir), stdout=lf, stderr=lf, text=True, check=True)
-                pbar.update(1)
-                print(f"[SUCCESS] Base de données snpEff '{db_name}' construite dans {db_dir}")
-                lf.write(f"[SUCCESS] Base de données snpEff '{db_name}' construite dans {db_dir}\n")
-            except subprocess.CalledProcessError as e:
-                pbar.close()
-                print(f"[ERROR] Erreur pendant la construction de la DB snpEff : {e}")
-                lf.write(f"[ERROR] Erreur pendant la construction : {e}\n")
+        lf.write(f"Commande : {' '.join(cmd)}\n")
 
-        elapsed = time.time() - start_time 
-        print(f"[INFO] Temps d’exécution : {elapsed:.2f} secondes")
-        lf.write(f"Temps d’exécution : {elapsed:.2f} secondes\n")
+        try:
+            subprocess.run(
+                cmd,
+                cwd=str(db_dir),  # 🔥 CRITIQUE
+                stdout=lf,
+                stderr=lf,
+                text=True,
+                check=True
+            )
+            print(f"[SUCCESS] DB snpEff créée : {db_dir}")
+
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] build snpEff : {e}")
+            lf.write(f"[ERROR] {e}\n")
+            raise RuntimeError("Échec de la construction snpEff (voir log)")
+
+        print(f"[INFO] Temps : {time.time() - start_time:.2f}s")
 
     return db_dir
 
 
-
-def annotate_all_vcfs(vcf_dir = "output/vcf_files", db_name = "pf_3D7_snpEff_db", db_dir = Path("output") / "pf_3D7_snpEff_db", 
-                        output_dir= "output/vcf_annotated", logs_dir="logs"):
-    
-    """
-    Annoter tous les fichiers VCF dans vcf_dir en utilisant une base snpEff déjà créée.
-    Toutes les sorties (stdout + stderr) sont redirigées vers un fichier log.
-    Seules les informations essentielles, la progression et le temps d'exécution
-    s'affichent dans le terminal.
-    """
+def annotate_all_vcfs(
+    vcf_dir=BASE_DIR / "output" / "vcf_files",
+    db_name="pf_3D7_snpEff_db",
+    output_dir=BASE_DIR / "output" / "vcf_annotated",
+    logs_dir=BASE_DIR / "logs"
+):
 
     start_time = time.time()
 
-    vcf_dir = Path(vcf_dir).resolve()
-    db_dir = Path(db_dir).resolve()
+    vcf_dir = Path(vcf_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Dossier de sortie
-    if output_dir is None:
-        output_dir = vcf_dir
-    else:
-        output_dir = Path(output_dir).resolve()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Dossier de logs
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
+
     log_file = logs_dir / "annotate_all_vcfs.log"
 
-    annotated_files = {}
+    # 👉 IMPORTANT : même base que build
+    db_dir = BASE_DIR / "output" / db_name
     config_file = db_dir / "snpEff.config"
 
     vcf_files = sorted(vcf_dir.glob("*.vcf"))
-    n_samples = len(vcf_files)
+    annotated_files = {}
 
-    print(f"[PIPELINE] Démarrage de l’étape annotate_all_vcfs ({n_samples} échantillons détectés)")
+    print(f"[PIPELINE] Annotation de {len(vcf_files)} VCF")
 
-    with open(log_file, "a") as lf:
-        for vcf_file in tqdm(vcf_files, desc="Annotation des variants", unit="échantillon"):
+    with open(log_file, "w") as lf:
+
+        for vcf_file in tqdm(vcf_files, desc="Annotation"):
+
             sample_id = vcf_file.stem
-            annotated_vcf = output_dir / f"{sample_id}_annot.vcf"
+            out_file = output_dir / f"{sample_id}_annot.vcf"
 
             cmd = [
                 "snpEff",
@@ -879,27 +908,26 @@ def annotate_all_vcfs(vcf_dir = "output/vcf_files", db_name = "pf_3D7_snpEff_db"
                 "-hgvs1LetterAa",
                 "-noShiftHgvs",
                 db_name,
-                str(vcf_file.resolve())
+                str(vcf_file)
             ]
 
-            lf.write(f"\n[INFO] Annotation de {vcf_file.name}...\n")
-            lf.write(f"Commande : {' '.join(cmd)}\n")
+            cmd = list(map(str, cmd))
+
+            lf.write(f"\n[INFO] {vcf_file.name}\n")
+            lf.write(f"CMD: {' '.join(cmd)}\n")
 
             try:
-                with open(annotated_vcf, "w") as out:
+                with open(out_file, "w") as out:
                     subprocess.run(cmd, stdout=out, stderr=lf, text=True, check=True)
 
-                annotated_files[sample_id] = str(annotated_vcf)
-                print(f"[INFO] Fichier annoté généré : {annotated_vcf}")
-                lf.write(f"[SUCCESS] Annotation terminée pour {vcf_file.name}\n")
+                annotated_files[sample_id] = str(out_file)
+                print(f"[OK] {sample_id}")
 
             except subprocess.CalledProcessError as e:
-                print(f"[ERROR] Échec de l’annotation pour {vcf_file.name}")
-                lf.write(f"[ERROR] Échec de l’annotation pour {vcf_file.name} : {e}\n")
+                print(f"[ERROR] {sample_id}")
+                lf.write(f"[ERROR] {e}\n")
 
-    elapsed_time = time.time() - start_time
-    print(f"[PIPELINE] Étape annotate_all_vcfs terminée en {elapsed_time:.2f} secondes.")
-    print(f"[LOG] Détails complets enregistrés dans : {log_file}")
+    print(f"[PIPELINE] Terminé en {time.time() - start_time:.2f}s")
 
     return annotated_files
 
@@ -981,6 +1009,7 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
 
                 output_vcf = Path(output_dir) / f"{sample_id}_{caller_name}_vartype.vcf"
                 cmd = ["java", "-jar", str(snpsift_jar), "varType", str(input_vcf)]
+                cmd = to_str_list(cmd)
 
                 global_log.write(f"[CMD] {' '.join(cmd)}\n")
 
@@ -1013,7 +1042,7 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
     return results
 
 
-def get_coverage(bam_dir="output/bam_picard_readgroups", output_dir="output/samtools_coverage", logs_dir="logs"):
+def get_coverage(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups", output_dir=BASE_DIR / "output" / "samtools_coverage", logs_dir=BASE_DIR / "logs"):
     """
     Calcule la couverture et la profondeur pour chaque échantillon à partir des fichiers BAM.
 
@@ -1089,7 +1118,7 @@ def get_coverage(bam_dir="output/bam_picard_readgroups", output_dir="output/samt
     print(f"[LOG] Détails complets enregistrés dans : {log_file}")
 
 
-def run_wt_cov(ref, gff, voi, depth_dir="output/samtools_coverage", output_dir="output/WT_cov", logs_dir="logs"):
+def run_wt_cov(ref, gff, voi, depth_dir=BASE_DIR / "output" / "samtools_coverage", output_dir=BASE_DIR / "output" / "WT_cov", logs_dir=BASE_DIR / "logs"):
     """
     Exécute wt_cov.py automatiquement pour tous les fichiers *_depth.txt trouvés dans depth_dir.
     Les fichiers résultats (_coverage.csv) sont déplacés dans output/WT_cov/.
@@ -1135,6 +1164,8 @@ def run_wt_cov(ref, gff, voi, depth_dir="output/samtools_coverage", output_dir="
                 "-V", voi
             ]
 
+            cmd = to_str_list(cmd)
+
             try:
                 # Exécuter le script
                 subprocess.run(cmd, stdout=log, stderr=log, text=True, check=True)
@@ -1166,7 +1197,7 @@ def run_wt_cov(ref, gff, voi, depth_dir="output/samtools_coverage", output_dir="
 
 
 
-def run_trim_stats(stats_dir="output/trimmed_reads", coverage_dir="output/samtools_coverage",   output_dir="output/Readscoverage", logs_dir="logs"):
+def run_trim_stats(stats_dir=BASE_DIR / "output" / "trimmed_reads", coverage_dir=BASE_DIR / "output" / "samtools_coverage",   output_dir=BASE_DIR / "output" / "Readscoverage", logs_dir=BASE_DIR / "logs"):
     """
     Exécute reads_stats.py pour tous les échantillons détectés.
     - Les fichiers .stats.txt sont dans output/trimmed_reads
@@ -1217,6 +1248,8 @@ def run_trim_stats(stats_dir="output/trimmed_reads", coverage_dir="output/samtoo
                 "-o", str(output_dir)
             ]
 
+            cmd = to_str_list(cmd)
+
             # Redirection complète stdout + stderr vers le log
             process = subprocess.run(cmd, stdout=log, stderr=log, text=True)
 
@@ -1237,7 +1270,7 @@ def run_trim_stats(stats_dir="output/trimmed_reads", coverage_dir="output/samtoo
     return results
 
 
-def run_reads_merge(input_dir="output/Readscoverage", output_dir="output/Summary", logs_dir="logs"):
+def run_reads_merge(input_dir=BASE_DIR / "output" / "Readscoverage", output_dir=BASE_DIR / "output" / "Summary", logs_dir=BASE_DIR / "logs"):
     """
     Fusionne tous les fichiers *_readcoverage.csv en un seul fichier Reads_Metrics_Samples.csv.
     - Supprime les en-têtes dupliqués (comme awk)
@@ -1294,7 +1327,7 @@ def run_reads_merge(input_dir="output/Readscoverage", output_dir="output/Summary
 
 
 
-def run_vcf_to_df(input_dir="output/vartype", output_dir="output/vcf_to_DF", script_path="bin/vcf_merge.py", logs_dir="logs"):
+def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR / "output" / "vcf_to_DF", script_path=BASE_DIR / "bin" / "vcf_merge.py", logs_dir=BASE_DIR / "logs"):
     """
     Exécute vcf_merge.py sur tous les échantillons détectés dans output/vartype/.
     - Chaque échantillon doit avoir 4 fichiers *_vartype.vcf
@@ -1360,6 +1393,7 @@ def run_vcf_to_df(input_dir="output/vartype", output_dir="output/vcf_to_DF", scr
             # --- Exécution du script pour chaque outil ---
             for tool, vcf in vcf_files.items():
                 cmd = ["python3", str(script_path), "-n", str(vcf), "-o", str(sample_output)]
+                cmd = to_str_list(cmd)
                 try:
                     subprocess.run(cmd, cwd=sample_output, stdout=log, stderr=log, text=True, check=True)
                 except subprocess.CalledProcessError as e:
@@ -1381,7 +1415,7 @@ def run_vcf_to_df(input_dir="output/vartype", output_dir="output/vcf_to_DF", scr
 
 
 
-def run_csv_merge_with_report(input_dir="output/vcf_to_DF", output_dir="output/CSV_merge", script_path="bin/csv_merge.py", logs_dir="logs"):
+def run_csv_merge_with_report(input_dir=BASE_DIR / "output" / "vcf_to_DF", output_dir=BASE_DIR / "output" / "CSV_merge", script_path=BASE_DIR / "bin" / "csv_merge.py", logs_dir=BASE_DIR / "logs"):
     """
     Étape CSV_merge améliorée :
     - Fusionne les CSV (samtools, freebayes, HC, vardict)
@@ -1509,7 +1543,7 @@ def parse_sample_metadata(sample_name):
 # ======================================================
 # Calcul du Sample_VAF pour tous les fichiers merge
 # ======================================================
-def compute_sample_vaf(input_dir="output/CSV_merge", output_dir="output/Sample_VAF"):
+def compute_sample_vaf(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=BASE_DIR / "output" / "Sample_VAF"):
        
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
@@ -1619,8 +1653,8 @@ def prepare_vaf_data(df):
 # ======================================================
 # 3. Script principal simplifié
 # ======================================================
-def run_SVAF_merge(input_sample_vaf_dir="output/Sample_VAF",
-                        output_file="output/SVAF_merge/SVAF_merge.csv"):
+def run_SVAF_merge(input_sample_vaf_dir=BASE_DIR / "output" / "Sample_VAF",
+                        output_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv"):
     
     print("[PIPELINE] Chargement des Sample_VAF...")
     df = load_all_sample_vaf(input_sample_vaf_dir)
@@ -1641,8 +1675,8 @@ def run_SVAF_merge(input_sample_vaf_dir="output/Sample_VAF",
 
 
 
-def run_snpfilter(voi_path="pf_3D7_Ref/voinew3.csv", merge_dir="output/CSV_merge", coverage_dir="output/WT_cov",
-                    output_dir="output/Snpfilter", script_path="bin/final_snpfilter.py", logs_dir="logs"):
+def run_snpfilter(voi_path=BASE_DIR / "pf_3D7_Ref" / "voinew3.csv", merge_dir=BASE_DIR / "output" / "CSV_merge", coverage_dir=BASE_DIR / "output" / "WT_cov",
+                    output_dir=BASE_DIR / "output" / "Snpfilter", script_path=BASE_DIR / "bin" / "final_snpfilter.py", logs_dir=BASE_DIR / "logs"):
     """
     Exécute final_snpfilter.py pour chaque échantillon.
     - VOI : fichier commun
@@ -1736,7 +1770,7 @@ def run_snpfilter(voi_path="pf_3D7_Ref/voinew3.csv", merge_dir="output/CSV_merge
 
 
 
-def run_summary_merge(input_dir="output/Snpfilter", output_dir="output/Summary_merge", logs_dir="logs"):
+def run_summary_merge(input_dir=BASE_DIR / "output" / "Snpfilter", output_dir=BASE_DIR / "output" / "Summary_merge", logs_dir=BASE_DIR / "logs"):
     """
     Fusionne tous les fichiers *_final_snp.csv issus de l'étape Snpfilter
     en un seul fichier merged_final_snp.csv (en supprimant les doublons d'en-tête).
@@ -1792,7 +1826,7 @@ def run_summary_merge(input_dir="output/Snpfilter", output_dir="output/Summary_m
 
 
 
-def run_introns_merge(input_dir="output/CSV_merge", output_dir="output/Summary", logs_dir="logs"):
+def run_introns_merge(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=BASE_DIR / "output" / "Summary", logs_dir=BASE_DIR / "logs"):
     """
     Fusionne tous les fichiers *_introns.csv des sous-dossiers dans output/CSV_merge/
     et crée un fichier unique : Introns_final_snp.csv
@@ -1859,8 +1893,8 @@ def run_introns_merge(input_dir="output/CSV_merge", output_dir="output/Summary",
 
 
 
-def run_summary(merged_final_snp="output/Summary_merge/merged_final_snp.csv", output_dir="output/Summary",
-                script_path="bin/summary.py", logs_dir="logs"):
+def run_summary(merged_final_snp=BASE_DIR / "output" / "Summary_merge" / "merged_final_snp.csv", output_dir=BASE_DIR / "output" / "Summary",
+                script_path=BASE_DIR / "bin" / "summary.py", logs_dir=BASE_DIR / "logs"):
     """
     Équivalent Python du process Nextflow 'Summary'.
     Exécute summary.py sur merged_final_snp.csv et publie les fichiers :
@@ -1930,8 +1964,8 @@ def run_summary(merged_final_snp="output/Summary_merge/merged_final_snp.csv", ou
             
 
 
-def run_dataviz_reportable_snps(input_dir="output/Summary", out_dir="output/Dataviz_Reportable_snps",
-                                script_path="bin/Dataviz_Reportable_snps.py", logs_dir="logs"):
+def run_dataviz_reportable_snps(input_dir=BASE_DIR / "output" / "Summary", out_dir=BASE_DIR / "output" / "Dataviz_Reportable_snps",
+                                script_path=BASE_DIR / "bin" / "Dataviz_Reportable_snps.py", logs_dir=BASE_DIR / "logs"):
     """
     Reproduction du process Nextflow 'Dataviz_Reportable_snps' en Python.
     - Parcourt les fichiers CSV dans input_dir.
@@ -2025,8 +2059,8 @@ def run_dataviz_reportable_snps(input_dir="output/Summary", out_dir="output/Data
 
 
 
-def run_DataViz_Novel_snps(input_dir="output/Summary/Novel_snps.csv", out_dir="output/Dataviz_Novel_snps",
-                            script_path="bin/Dataviz_Novel_snps.py", logs_dir="logs"):
+def run_DataViz_Novel_snps(input_dir=BASE_DIR / "output" / "Summary" / "Novel_snps.csv", out_dir=BASE_DIR / "output" / "Dataviz_Novel_snps",
+                            script_path=BASE_DIR / "bin" / "Dataviz_Novel_snps.py", logs_dir=BASE_DIR / "logs"):
     """
     Exécute le script Dataviz_Novel_snps.py sur le fichier spécifié,
     sauvegarde les logs dans logs/Dataviz_Novel_snps.log,P1	Pfdhps	1486	5547	71.0%	A437G	SNP	Mutant
@@ -2105,8 +2139,8 @@ def run_DataViz_Novel_snps(input_dir="output/Summary/Novel_snps.csv", out_dir="o
 
 
 
-def run_replace_mutations(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
-                            output_dir="output/haplotypes", logs_dir="logs"):
+def run_replace_mutations(input_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
+                            output_dir=BASE_DIR / "output" / "haplotypes", logs_dir=BASE_DIR / "logs"):
     """
     Parcourt le fichier CSV d'entrée et remplace les valeurs 'MT' ou 'MIX'
     par la dernière lettre du nom de la colonne correspondante et 'WT' par la première lettre.
@@ -2170,7 +2204,7 @@ def run_replace_mutations(input_file="output/Dataviz_Reportable_snps/Reportable_
 
     
     
-def filtered_summary_merge(input_file="output/Summary_merge/merged_final_snp.csv", output_dir="output/Summary_merge_filtered", logs_dir="logs"):
+def filtered_summary_merge(input_file=BASE_DIR / "output" / "Summary_merge" / "merged_final_snp.csv", output_dir=BASE_DIR / "output" / "Summary_merge_filtered", logs_dir=BASE_DIR / "logs"):
     """
     Extrait et formate certaines colonnes du fichier merged_final_snp.csv :
       - Sélectionne les colonnes d’intérêt
@@ -2235,8 +2269,8 @@ def filtered_summary_merge(input_file="output/Summary_merge/merged_final_snp.csv
     
 
 
-def filter_empty_pos(input_file = "output/Summary_merge_filtered/filtered_summary_merge.csv", 
-                        output_file="output/Summary_merge_filtered/filtered_summary_clean.csv", logs_dir="logs"):
+def filter_empty_pos(input_file = BASE_DIR / "output" / "Summary_merge_filtered" / "filtered_summary_merge.csv", 
+                        output_file=BASE_DIR / "output" / "Summary_merge_filtered" / "filtered_summary_clean.csv", logs_dir=BASE_DIR / "logs"):
 
     """
     Copie le fichier d'entrée et supprime toutes les lignes
@@ -2281,8 +2315,8 @@ def filter_empty_pos(input_file = "output/Summary_merge_filtered/filtered_summar
 
 
 
-def run_haplotypes(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv", 
-                   output_dir="output/haplotypes", logs_dir="logs"):
+def run_haplotypes(input_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv", 
+                   output_dir=BASE_DIR / "output" / "haplotypes", logs_dir=BASE_DIR / "logs"):
     """
     Construit des haplotypes pour chaque échantillon.
     Règle stricte : si NA/MIX apparaît dans les X premières positions d'un gène → "Null".
@@ -2410,8 +2444,8 @@ def run_haplotypes(input_file="output/Dataviz_Reportable_snps/Reportable_snps_DM
 
 
 
-def filter_haplotypes(input_file="output/haplotypes/haplotypes_summary.csv",
-                      output_file="output/haplotypes/filtered_haplotypes_summary.csv"):
+def filter_haplotypes(input_file=BASE_DIR / "output" / "haplotypes" / "haplotypes_summary.csv",
+                      output_file=BASE_DIR / "output" / "haplotypes" / "filtered_haplotypes_summary.csv"):
     """
     Charge haplotypes_summary.csv, supprime CytB & K13,
     identifie automatiquement les colonnes haplotype,
@@ -2456,7 +2490,7 @@ def filter_haplotypes(input_file="output/haplotypes/haplotypes_summary.csv",
 
 
 
-def run_combined_haplotypes(input_file="output/haplotypes/filtered_haplotypes_summary.csv", out_dir="output/haplotypes",
+def run_combined_haplotypes(input_file=BASE_DIR / "output" / "haplotypes" / "filtered_haplotypes_summary.csv", out_dir=BASE_DIR / "output" / "haplotypes",
                                         output_name="Combined_Haplotypes.csv"):
 
     # Création du dossier de sortie
@@ -2487,10 +2521,10 @@ def run_combined_haplotypes(input_file="output/haplotypes/filtered_haplotypes_su
 #======================================================================
 
 def generate_final_report_by_site(
-    reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
-    combined_hap_file="output/haplotypes/Combined_Haplotypes.csv",
-    vaf_file="output/SVAF_merge/SVAF_merge.csv",
-    out_dir="output/haplotypes/Report",
+    reportable_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
+    combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
+    vaf_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv",
+    out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
     pdf_name="Final_Report.pdf"
 ):
 
@@ -2945,10 +2979,10 @@ def generate_final_report_by_site(
 
 
 def generate_final_report_by_site_MT_MIX(
-    reportable_file="output/Dataviz_Reportable_snps/Reportable_snps_DMS_EPI_report.csv",
-    combined_hap_file="output/haplotypes/Combined_Haplotypes.csv",
-    vaf_file="output/SVAF_merge/SVAF_merge.csv",
-    out_dir="output/haplotypes/Report",
+    reportable_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
+    combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
+    vaf_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv",
+    out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
     pdf_name="Final_Report_MT_MIX.pdf"
 ):
 
@@ -3356,32 +3390,33 @@ if __name__ == "__main__":
 
     # Lancement QC_pre_trimming
     log_step("QC pré-trimming")
-    QC_pre_trimming(input_dir="data", output_dir="output/QC_pre_trimming")
+    QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "QC_pre_trimming")
 
 
     # Lancement MultiQC_pre_trimming
     log_step("QC pré-trimming")
-    MultiQC_pre_trimming(output_dir="output/QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html")
+    MultiQC_pre_trimming(output_dir=BASE_DIR / "output" / "QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html")
     
 
     # Lancement Trimming avec BBduk
     log_step("Trimming")
-    trimming(input_dir="data", output_dir="output/trimmed_reads", adapter_file="pf_3D7_Ref/adapters.fa")
+    trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file=BASE_DIR / "pf_3D7_Ref" / "adapters.fa")
 
 
     # Lancement QC_post_trimming
     log_step("QC post-trimming")
-    QC_post_trimming(input_dir="output/trimmed_reads", output_dir="output/QC_post_trimming")
+    QC_post_trimming(input_dir=BASE_DIR / "output" / "trimmed_reads", output_dir=BASE_DIR / "output" / "QC_post_trimming")
 
 
     # Lancement MultiQC_post_trimming
     log_step("MultiQC post-trimming")
-    MultiQC_post_trimming(output_dir="output/QC_post_trimming", report_name="MultiQC_post_trimming_report.html")
+    MultiQC_post_trimming(output_dir=BASE_DIR / "output" / "QC_post_trimming", report_name="MultiQC_post_trimming_report.html")
 
+    
     
     # Lancement bwa_index
     log_step("BWA index")
-    reference = "pf_3D7_Ref/mars_pf_ref.fasta"  # chemin vers la référence
+    reference = BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta"  # chemin vers la référence
     bwa_index(reference)
 
     
@@ -3403,13 +3438,13 @@ if __name__ == "__main__":
     # Lancement VCF call
     log_step("VCF call")
     vcf_call_all_samples()
-
+    
     
     # Lancement la creation de la base de donnee
     log_step("Build snpEff database")
-    build_snpeff_db(db_name="pf_3D7_snpEff_db", 
-        snpeff_config="pf_3D7_snpEff_db",
-        output_dir="output")
+    build_snpeff_db(db_name=BASE_DIR / "pf_3D7_snpEff_db", 
+        snpeff_config=BASE_DIR / "pf_3D7_snpEff_db",
+        output_dir=BASE_DIR / "output")
         
     # Lancement l'annotation
     log_step("Annotate VCFs")
@@ -3432,18 +3467,18 @@ if __name__ == "__main__":
     for sample, files in results.items():
         print(f"  - {sample}: {files}")
     
-        
+    
     # Lancement coverage
     log_step("Coverage")
-    get_coverage(bam_dir="output/bam_picard_readgroups",
-        output_dir="output/samtools_coverage", logs_dir="logs")
+    get_coverage(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups",
+        output_dir=BASE_DIR / "output" / "samtools_coverage", logs_dir=BASE_DIR / "logs")
 
 
     # Lancement wt_coverage
     log_step("WT Coverage")
-    ref = "pf_3D7_Ref/mars_pf_ref.fasta"
-    gff = "pf_3D7_Ref/mars_pf.gff"
-    voi = "pf_3D7_Ref/voinew3.csv"
+    ref = BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta"
+    gff = BASE_DIR / "pf_3D7_Ref" / "mars_pf.gff"
+    voi = BASE_DIR / "pf_3D7_Ref" / "voinew3.csv"
     results = run_wt_cov(ref, gff, voi)
     print("[PIPELINE] Résultats WT_cov générés :")
     for sample, path in results.items():
@@ -3549,9 +3584,9 @@ if __name__ == "__main__":
     log_step("Generate final report by site (MIX as MT)")
     generate_final_report_by_site_MT_MIX()
     
-    
+
 
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
-    print("[PIPELINE] Fin du pipeline.")   
-
+    print("[PIPELINE] Fin du pipeline.")  
+    

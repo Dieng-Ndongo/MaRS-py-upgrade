@@ -1,36 +1,26 @@
-# ===== Base image Micromamba =====
 FROM mambaorg/micromamba:1.5.8
 
-# ===== Installer les paquets système =====
 USER root
 RUN apt-get update -y --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends \
         wget unzip git curl build-essential default-jdk less vim && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ===== Définir le répertoire de travail =====
 WORKDIR /app
 
-# ===== Copier environment.yml et créer l'environnement =====
-COPY environment.yml /app/environment.yml
-RUN micromamba create -y -n pipeline_env -f /app/environment.yml && \
+COPY environment.yml /tmp/environment.yml
+
+RUN micromamba create -y -n pipeline_env -f /tmp/environment.yml && \
     micromamba clean --all --yes
 
-# ===== Copier tout le pipeline =====
-COPY . /app
-
-# ===== Créer dossiers nécessaires =====
-RUN mkdir -p /app/output /app/logs /app/data
-
-# ===== Créer un utilisateur non-root =====
-RUN useradd -m -u 1000 pipelineuser && \
-    chown -R pipelineuser:pipelineuser /app
-
+# utilisateur non-root
+RUN useradd -m -u 1000 pipelineuser
 USER pipelineuser
 
-# ===== Utiliser l'environnement conda pour la suite =====
+# shell conda
 SHELL ["micromamba", "run", "-n", "pipeline_env", "/bin/bash", "-c"]
 
-# ===== Point d'entrée =====
-ENTRYPOINT ["micromamba", "run", "-n", "pipeline_env", "python", "pipeline_python.py"]
+# 👉 PAS de COPY . /app ici (important)
 
+# 👉 pas de ENTRYPOINT rigide
+CMD ["python", "pipeline_python.py"]
