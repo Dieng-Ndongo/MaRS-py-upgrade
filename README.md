@@ -153,7 +153,7 @@ docker build -t bioinfo_pipeline .
 
 ```bash
 
-docker run --rm -it -v ~/pipeline:/app bioinfo_pipeline
+docker run --rm -it -v $(pwd):/app -w /app bioinfo_pipeline
 
 ```
 **NB**: Pour utiliser l'interface web executez cette commande
