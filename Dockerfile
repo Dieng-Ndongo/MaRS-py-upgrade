@@ -20,7 +20,5 @@ USER pipelineuser
 # shell conda
 SHELL ["micromamba", "run", "-n", "pipeline_env", "/bin/bash", "-c"]
 
-# 👉 PAS de COPY . /app ici (important)
 
-# 👉 pas de ENTRYPOINT rigide
 CMD ["python", "pipeline_python.py"]
