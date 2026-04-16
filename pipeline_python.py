@@ -3410,7 +3410,7 @@ if __name__ == "__main__":
     global_start = time.time()
 
     
-    """
+  
     # Lancement QC_pre_trimming
     log_step("QC pré-trimming")
     QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "QC_pre_trimming")
@@ -3598,7 +3598,7 @@ if __name__ == "__main__":
     log_step("Run combined haplotypes")
     run_combined_haplotypes()
     
-    """
+    
     # Lancement generate_final_report_by_site
     log_step("Generate final report by site")
     generate_final_report_by_site()
