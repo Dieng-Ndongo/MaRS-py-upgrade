@@ -2584,6 +2584,16 @@ def generate_final_report_by_site(
     story.append(Spacer(1, 14))
 
 
+    # --- Methodology section ---
+    methodology_text = """
+    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools.To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF × weight) / Σ(weight) ] × 100. In this report, mixed infections (MIX) were retained in their specific category for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
+        """
+
+    story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(methodology_text.replace("\n", "<br/>"), styles["Normal"]))
+    story.append(Spacer(1, 14))
+
     # ======================================================
     # Résumé global au début du rapport (corrigé pour J0/JE)
     # ======================================================
@@ -3041,6 +3051,19 @@ def generate_final_report_by_site_MT_MIX(
     story.append(Paragraph("<b>Final Report SNP & Haplotype (MIX as Mutant)</b>", styles["Title"]))
     story.append(Spacer(1, 14))
 
+
+
+    # --- Methodology section ---
+    methodology_text = """
+    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools. To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF × weight) / Σ(weight) ] × 100. In this report, mixed infections (MIX) were considered as carrying the mutant allele for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
+    """
+
+    story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(methodology_text.replace("\n", "<br/>"), styles["Normal"]))
+    story.append(Spacer(1, 14))
+
+
     # ======================================================
     # Résumé global au début du rapport (J0/JE)
     # ======================================================
@@ -3387,7 +3410,7 @@ if __name__ == "__main__":
     global_start = time.time()
 
     
-
+    """
     # Lancement QC_pre_trimming
     log_step("QC pré-trimming")
     QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "QC_pre_trimming")
@@ -3516,7 +3539,7 @@ if __name__ == "__main__":
     log_step("Run SVAF merge")
     run_SVAF_merge()
     
-
+    
     #Lancement run_snpfilter
     log_step("Run SNP filter")
     run_snpfilter()
@@ -3575,7 +3598,7 @@ if __name__ == "__main__":
     log_step("Run combined haplotypes")
     run_combined_haplotypes()
     
-
+    """
     # Lancement generate_final_report_by_site
     log_step("Generate final report by site")
     generate_final_report_by_site()
