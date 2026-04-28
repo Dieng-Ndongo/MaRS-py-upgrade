@@ -17,8 +17,5 @@ RUN micromamba create -y -n pipeline_env -f /tmp/environment.yml && \
 RUN useradd -m -u 1000 pipelineuser
 USER pipelineuser
 
-# shell conda
-SHELL ["micromamba", "run", "-n", "pipeline_env", "/bin/bash", "-c"]
-
-
-CMD ["python", "pipeline_python.py"]
+# Executer le pipeline
+CMD ["micromamba", "run", "-n", "pipeline_env", "python", "pipeline_python.py"]
