@@ -25,11 +25,9 @@ Le pipeline peux etre utiliser via une interface graphique.
 ---
 
 ## Données
-- Données de séquençage NGS (FASTQ compressés) utiisant la nommanclature **AMD_ID**
-- Échantillons individuels et/ou poolés
-- Génome de référence : *Plasmodium falciparum* 3D7
+- Données de séquençage NGS (fastq compressés)
 
-### Nomenclature AMD_ID
+### Nomenclature des echantillons
 
 ![Nomenclature AMD_ID pour les échantillons individuels](images/individual_AMD_ID.png)
 **Exemple :** 23SNKG28A0004PfB4721_KG48D28_S8_L001_R1_001.fastq.gz 
@@ -71,10 +69,7 @@ HOME/
     │   
     │
     ├── output/                   # Résultats générés
-    │   ├── QC/
-    │   ├── bam/
-    │   ├── variants/
-    │   └── haplotypes/, etc.
+    │
     │
     ├── logs/                     # Logs d’exécution
     │   └── *.log
@@ -90,7 +85,6 @@ HOME/
     ├── pipeline_python.py        # Script du pipeline  
     ├── environment.yml           # environment       
     ├── Dockerfile                # Fichier docker
-    ├── app.py                    # Script strimlit
     └── README.md                 # Fichier README
 
 ```
@@ -154,12 +148,5 @@ docker build -t bioinfo_pipeline .
 ```bash
 
 docker run --rm -it -v $(pwd):/app -w /app bioinfo_pipeline
-
-```
-**NB**: Pour utiliser l'interface web executez cette commande
-
-```bash
-
-streamlit run app.py
 
 ```
