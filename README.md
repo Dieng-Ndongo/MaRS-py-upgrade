@@ -61,23 +61,17 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 ```text
 MaRS-py-upgrade/
 │
-├── 📂 bin/
-│   ├── dashboard_page.py       # Page principale du tableau de bord
-│   ├── pdf_export.py           # Génération des rapports PDF
-│   ├── progress_tracker.py     # Suivi de la progression du pipeline
-│   ├── qc_dashboard.py         # Visualisation des résultats de contrôle qualité
-│   ├── reads_stats.py          # Calcul des statistiques sur les reads
-│   └── results_page.py         # Affichage des résultats d'analyse
-│
+├── 📂 bin/        # Scripts secondaires
+│      └── ... 
+|
 ├── 📂 pf_3D7/
 │   └── ...                     # Génome de référence de Plasmodium falciparum
 │
 ├── 📂 pf_3D7_snpEff_db/
 │   └── ...                     # Base de données d'annotation SnpEff
 │
-├── 📂 images/
-│   ├── bioinf.jpeg
-│   └── bioinfo.jpeg            # Images utilisées dans l'interface
+├── 📂 images/                  # Images utilisées dans l'interface
+│         └── ...           
 │
 ├── 📂 runs/
 │   └── run_id/
@@ -90,20 +84,33 @@ MaRS-py-upgrade/
 │       └── 📂 log/
 │           └── ...             # Journaux d'exécution
 │
-├── 📂 .agents/
-│   └── skills/
-│       └── developing-with-streamlit/
-│                               # Ressources pour le développement Streamlit
 │
 ├── 🐍 pipeline_python.py       # Script principal du pipeline
 ├── 🖥️ app.py                   # Interface utilisateur Streamlit
 ├── 🐳 Dockerfile               # Configuration de l'image Docker
-├── 📦 environment.yml          # Environnement et dépendances Conda
-├── 📄 requirements.txt         # Dépendances Python
+├── 📦 environment.yml          # Environnement et dépendances Conda du pipeline
+├── 📄 requirements.txt         # Dépendances Python de l'application web
 ├── 🚀 start.sh                 # Script de lancement du pipeline
 ├── 📄 .dockerignore            # Fichiers exclus de l'image Docker
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
+
+```markdown
+### 📌 Description des principaux composants
+
+| Élément | Description |
+|---|---|
+| `pipeline_python.py` | Implémentation principale du pipeline bioinformatique en Python. |
+| `app.py` | Interface graphique permettant de lancer et suivre les analyses avec Streamlit. |
+| `bin/` | Regroupe les scripts secondaires utilisés par le pipeline et l'interface. |
+| `pf_3D7/` | Contient le génome de référence de *Plasmodium falciparum* 3D7. |
+| `pf_3D7_snpEff_db/` | Contient les fichiers nécessaires à l'annotation des variants avec SnpEff. |
+| `runs/` | Regroupe les résultats générés pour chaque analyse. |
+| `environment.yml` | Définit l'environnement Conda et les dépendances du pipeline. |
+| `requirements.txt` | Liste les dépendances Python nécessaires à l'interface et aux scripts associés. |
+| `Dockerfile` | Permet de construire l'environnement d'exécution du pipeline avec Docker. |
+| `start.sh` | Automatise le lancement du pipeline et/ou de l'interface. |
+| `.gitignore` | Définit les fichiers et répertoires qui ne doivent pas être suivis par Git. |
 ```
 ---
 
