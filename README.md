@@ -156,7 +156,7 @@ newgrp docker
 
 ```bash
 
-git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade.git
+git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade
 
 cd MaRS-py-upgrade
 
