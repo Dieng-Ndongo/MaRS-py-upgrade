@@ -9,9 +9,11 @@ channels:
 dependencies:
 # Python
   - python=3.10
+  - plotly 
   - pip
   - pip:
     - streamlit
+    - streamlit-autorefresh 
 # Bioinformatique / outils NGS
   - fastqc
   - multiqc
@@ -40,7 +42,6 @@ dependencies:
   - pyfaidx 
   - xlrd
   - tqdm
-  - plotly
   - matplotlib
   - seaborn
   - pysam

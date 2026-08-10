@@ -27,7 +27,7 @@ from reportlab.platypus import Paragraph
 import json
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path("/pipeline")
 
 def to_str_list(cmd):
     return list(map(str, cmd))
@@ -169,7 +169,7 @@ def MultiQC_pre_trimming(output_dir=BASE_DIR / "output" / "QC_pre_trimming", rep
 
 
 
-def trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file=BASE_DIR / "pf_3D7_Ref" / "adapters.fa", logs_dir=BASE_DIR / "logs"):
+def trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file = Path("/ref/adapters.fa"), logs_dir=BASE_DIR / "logs"):
     """
     Exécute BBduk pour le trimming des reads paired-end dans input_dir.
     Enregistre les sorties dans output_dir et un log global dans logs_dir.
@@ -434,68 +434,9 @@ def bwa_index(ref, output_dir=BASE_DIR / "output" / "index_ref", logs_dir=BASE_D
 
 
 
-def bwa_index_0(ref, output_dir=BASE_DIR / "output" / "index_ref", local_picard_jar=BASE_DIR / "tools" / "picard.jar", logs_dir=BASE_DIR / "logs"):
-    """
-    Indexation de la séquence de référence :
-      - BWA index
-      - Samtools faidx
-      - Picard CreateSequenceDictionary
-    Affiche uniquement la progression et le temps final dans le terminal.
-    Tout le reste (stdout/stderr, erreurs) va dans logs/bwa_index.log
-    """
-    print("********************** BWA_INDEX : Début *****************************")
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(logs_dir, exist_ok=True)
-
-    log_file = os.path.join(logs_dir, "bwa_index.log")
-    start_time = time.time()
-
-    with open(log_file, "w") as lf:
-        lf.write("===== LOG GLOBAL - BWA_INDEX =====\n")
-        lf.write(f"Début : {datetime.now()}\n")
-        lf.write(f"Fichier de référence : {ref}\n\n")
-
-    # Copier la référence
-    ref_copy = os.path.join(output_dir, os.path.basename(ref))
-    if not os.path.exists(ref_copy):
-        shutil.copy(ref, ref_copy)
-    print(f"[INFO] Référence copiée dans {output_dir}")
-
-    # Étapes
-    steps = [
-        ("BWA index", ["bwa", "index", ref_copy]),
-        ("Samtools faidx", ["samtools", "faidx", ref_copy]),
-        ("Picard CreateSequenceDictionary", None)
-    ]
-
-    for step_name, cmd in tqdm(steps, desc="Indexation en cours", unit="étape"):
-        print(f"[INFO] {step_name} en cours...")
-        if cmd:
-            run_cmd(cmd, log_file)
-        else:
-            # Picard
-            dict_output = ref_copy.replace(".fasta", ".dict").replace(".fa", ".dict")
-            if os.path.exists(dict_output):
-                os.remove(dict_output)
-
-            picard_cmd = shutil.which("picard")
-            if picard_cmd:
-                run_cmd([picard_cmd, "CreateSequenceDictionary", f"R={ref_copy}", f"O={dict_output}"], log_file)
-            elif os.path.exists(local_picard_jar):
-                run_cmd(["java", "-jar", local_picard_jar, "CreateSequenceDictionary", f"R={ref_copy}", f"O={dict_output}"], log_file)
-            else:
-                with open(log_file, "a") as lf:
-                    lf.write("[ERROR] Picard non trouvé !\n")
-                raise FileNotFoundError("Picard non trouvé")
-
-    total_time = time.time() - start_time
-    print(f"[PIPELINE] Étape bwa_index terminée en {total_time/60:.2f} minutes")
-    print(f"[INFO] Log global disponible ici : {log_file}")
-    print("********************** BWA_INDEX : Fin *****************************")
-
 
 def bwa_align(input_dir=BASE_DIR / "output" / "trimmed_reads", sam_dir=BASE_DIR / "output" / "sam_files", bam_dir=BASE_DIR / "output" / "bam_files", 
-                reference=BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta", logs_dir=BASE_DIR / "logs"):
+                reference=BASE_DIR / "output" / "index_ref" / "mars_pf_ref.fasta", logs_dir=BASE_DIR / "logs"):
     """
     Aligne des reads paired-end sur un génome de référence avec BWA-MEM,
     produit SAM et BAM trié et indexé.
@@ -646,7 +587,7 @@ def picard_add_readgroups(input_dir=BASE_DIR / "output" / "sam_files", output_di
 
 
 
-def get_bed(input_dir=BASE_DIR / "pf_3D7_Ref", output_dir=BASE_DIR / "output" / "BED", bed_name="mars_genes.bed", logs_dir=BASE_DIR / "logs"):
+def get_bed(input_dir=Path("/ref"), output_dir=BASE_DIR / "output" / "BED", bed_name="mars_genes.bed", logs_dir=BASE_DIR / "logs"):
     """
     Convertit tous les fichiers GFF d'un dossier en fichiers BED contenant uniquement les gènes.
     Les sorties (stdout, stderr) sont enregistrées dans un fichier .log.
@@ -934,22 +875,16 @@ def annotate_all_vcfs(
 
 
 
-def find_snpsift_jar(env_name="pipeline_env"):
-    """
-    Retourne le chemin absolu du SnpSift.jar dans l'environnement Micromamba
-    """
-    base_path = Path("/opt/conda/envs") / env_name / "share"
-    # Chercher un dossier contenant 'snpsift'
-    snpsift_dirs = [d for d in base_path.glob("snpsift*") if d.is_dir()]
-    if not snpsift_dirs:
-        raise FileNotFoundError(f"SnpSift.jar introuvable dans {base_path}")
-    snpsift_jar = snpsift_dirs[0] / "SnpSift.jar"
-    if not snpsift_jar.exists():
-        raise FileNotFoundError(f"SnpSift.jar introuvable à : {snpsift_jar}")
-    return str(snpsift_jar)
+import shutil
+
+def find_snpsift():
+    path = shutil.which("SnpSift")
+    if not path:
+        raise FileNotFoundError("SnpSift introuvable dans PATH")
+    return path
 
 
-def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
+def run_vartype_all(input_dir, output_dir, logs_dir=None):
     """
     Applique SnpSift varType sur tous les fichiers VCF annotés présents dans input_dir.
     Affiche la progression et enregistre toutes les sorties dans un log global.
@@ -971,8 +906,8 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
 
 
         # Localisation du jar SnpSift
-        snpsift_jar = find_snpsift_jar(env_name="pipeline_env")
-        print(f"[INFO] SnpSift.jar trouvé à : {snpsift_jar}")
+        snpsift = find_snpsift()
+        print(f"[INFO] SnpSift.jar trouvé à : {snpsift}")
 
         # Liste des fichiers annotés
         annotated_vcfs = glob.glob(os.path.join(input_dir, "*_annot.vcf"))
@@ -1008,8 +943,8 @@ def run_vartype_all(input_dir, output_dir, env_path=None, logs_dir=None):
                     continue
 
                 output_vcf = Path(output_dir) / f"{sample_id}_{caller_name}_vartype.vcf"
-                cmd = ["java", "-jar", str(snpsift_jar), "varType", str(input_vcf)]
-                cmd = to_str_list(cmd)
+
+                cmd = [snpsift, "varType", str(input_vcf)]
 
                 global_log.write(f"[CMD] {' '.join(cmd)}\n")
 
@@ -1134,7 +1069,9 @@ def run_wt_cov(ref, gff, voi, depth_dir=BASE_DIR / "output" / "samtools_coverage
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = logs_dir / "WT_cov.log"
-    script_path = Path("bin/wt_cov.py").resolve()
+
+    script_path = Path("/app/bin/wt_cov.py")
+
 
     # Trouver tous les fichiers *_depth.txt
     depth_files = sorted(depth_dir.rglob("*_depth.txt"))
@@ -1163,6 +1100,15 @@ def run_wt_cov(ref, gff, voi, depth_dir=BASE_DIR / "output" / "samtools_coverage
                 "-N", str(depth_file),
                 "-V", voi
             ]
+
+            subprocess.run(
+                cmd,
+                stdout=log,
+                stderr=log,
+                text=True,
+                check=True,
+                cwd=output_dir   # ✅ clé
+            )
 
             cmd = to_str_list(cmd)
 
@@ -1215,7 +1161,7 @@ def run_trim_stats(stats_dir=BASE_DIR / "output" / "trimmed_reads", coverage_dir
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = logs_dir / "Trim_Stats.log"
-    script_path = Path("bin/reads_stats.py").resolve()
+    script_path = Path("/app/bin/reads_stats.py")
 
     stats_files = sorted(stats_dir.glob("*.stats.txt"))
     if not stats_files:
@@ -1248,10 +1194,19 @@ def run_trim_stats(stats_dir=BASE_DIR / "output" / "trimmed_reads", coverage_dir
                 "-o", str(output_dir)
             ]
 
+            
+
             cmd = to_str_list(cmd)
 
             # Redirection complète stdout + stderr vers le log
-            process = subprocess.run(cmd, stdout=log, stderr=log, text=True)
+            process = subprocess.run(
+                cmd,
+                stdout=log,
+                stderr=log,
+                text=True,
+                check=True,
+                cwd=output_dir   # ✅ clé
+            )
 
             if process.returncode == 0:
                 results[sample_id] = str(output_file)
@@ -1327,7 +1282,7 @@ def run_reads_merge(input_dir=BASE_DIR / "output" / "Readscoverage", output_dir=
 
 
 
-def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR / "output" / "vcf_to_DF", script_path=BASE_DIR / "bin" / "vcf_merge.py", logs_dir=BASE_DIR / "logs"):
+def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR / "output" / "vcf_to_DF", script_path=Path("/app/bin/vcf_merge.py"), logs_dir=BASE_DIR / "logs"):
     """
     Exécute vcf_merge.py sur tous les échantillons détectés dans output/vartype/.
     - Chaque échantillon doit avoir 4 fichiers *_vartype.vcf
@@ -1415,7 +1370,7 @@ def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR
 
 
 
-def run_csv_merge_with_report(input_dir=BASE_DIR / "output" / "vcf_to_DF", output_dir=BASE_DIR / "output" / "CSV_merge", script_path=BASE_DIR / "bin" / "csv_merge.py", logs_dir=BASE_DIR / "logs"):
+def run_csv_merge_with_report(input_dir=BASE_DIR / "output" / "vcf_to_DF", output_dir=BASE_DIR / "output" / "CSV_merge", script_path=Path("/app/bin/csv_merge.py"), logs_dir=BASE_DIR / "logs"):
     """
     Étape CSV_merge améliorée :
     - Fusionne les CSV (samtools, freebayes, HC, vardict)
@@ -1540,11 +1495,8 @@ def parse_sample_metadata(sample_name):
     }
 
 
-# ======================================================
-# Calcul du Sample_VAF pour tous les fichiers merge
-# ======================================================
 def compute_sample_vaf(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=BASE_DIR / "output" / "Sample_VAF"):
-       
+
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1566,12 +1518,6 @@ def compute_sample_vaf(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=B
         # POOL status et poids
         pool_status = "pooled" if pool_size > 1 else "individual"
         weight = pool_size
-
-        # Calcul du Sample_VAF
-        if pool_size > 1:
-            df['SVAF'] = df['AVG_VAF'] / pool_size
-        else:
-            df['SVAF'] = df['AVG_VAF']
 
         # Sélection et ordre strict des colonnes
         final_df = df[[
@@ -1595,9 +1541,6 @@ def compute_sample_vaf(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=B
         final_df.insert(4, 'TREATMENT_DAY', metadata['TREATMENT_DAY'])
         final_df.insert(5, 'POOL', pool_status)
         final_df.insert(6, 'Weight', weight)
-
-        # Ajout du Sample_VAF
-        final_df['SVAF'] = df['SVAF'].round(4)
 
         # Sauvegarde
         out_file = output_dir / f"{sample_name}_SVAF.csv"
@@ -1653,8 +1596,8 @@ def prepare_vaf_data(df):
 # ======================================================
 # 3. Script principal simplifié
 # ======================================================
-def run_SVAF_merge(input_sample_vaf_dir=BASE_DIR / "output" / "Sample_VAF",
-                        output_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv"):
+def run_VAF_merge(input_sample_vaf_dir=BASE_DIR / "output" / "Sample_VAF",
+                        output_file=BASE_DIR / "output" / "Sample_VAF_merge" / "Sample_VAF_merge.csv"):
     
     print("[PIPELINE] Chargement des Sample_VAF...")
     df = load_all_sample_vaf(input_sample_vaf_dir)
@@ -1675,8 +1618,8 @@ def run_SVAF_merge(input_sample_vaf_dir=BASE_DIR / "output" / "Sample_VAF",
 
 
 
-def run_snpfilter(voi_path=BASE_DIR / "pf_3D7_Ref" / "voinew3.csv", merge_dir=BASE_DIR / "output" / "CSV_merge", coverage_dir=BASE_DIR / "output" / "WT_cov",
-                    output_dir=BASE_DIR / "output" / "Snpfilter", script_path=BASE_DIR / "bin" / "final_snpfilter.py", logs_dir=BASE_DIR / "logs"):
+def run_snpfilter(voi_path=Path("/ref/voinew3.csv"), merge_dir=BASE_DIR / "output" / "CSV_merge", coverage_dir=BASE_DIR / "output" / "WT_cov",
+                    output_dir=BASE_DIR / "output" / "Snpfilter",  script_path=Path("/app/bin/final_snpfilter.py"), logs_dir=BASE_DIR / "logs"):
     """
     Exécute final_snpfilter.py pour chaque échantillon.
     - VOI : fichier commun
@@ -1690,6 +1633,8 @@ def run_snpfilter(voi_path=BASE_DIR / "pf_3D7_Ref" / "voinew3.csv", merge_dir=BA
     output_dir = Path(output_dir).resolve()
     logs_dir = Path(logs_dir).resolve()
     script_path = Path(script_path).resolve()
+
+
 
     output_dir.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -1894,7 +1839,7 @@ def run_introns_merge(input_dir=BASE_DIR / "output" / "CSV_merge", output_dir=BA
 
 
 def run_summary(merged_final_snp=BASE_DIR / "output" / "Summary_merge" / "merged_final_snp.csv", output_dir=BASE_DIR / "output" / "Summary",
-                script_path=BASE_DIR / "bin" / "summary.py", logs_dir=BASE_DIR / "logs"):
+                script_path=Path("/app/bin/summary.py"), logs_dir=BASE_DIR / "logs"):
     """
     Équivalent Python du process Nextflow 'Summary'.
     Exécute summary.py sur merged_final_snp.csv et publie les fichiers :
@@ -1965,7 +1910,7 @@ def run_summary(merged_final_snp=BASE_DIR / "output" / "Summary_merge" / "merged
 
 
 def run_dataviz_reportable_snps(input_dir=BASE_DIR / "output" / "Summary", out_dir=BASE_DIR / "output" / "Dataviz_Reportable_snps",
-                                script_path=BASE_DIR / "bin" / "Dataviz_Reportable_snps.py", logs_dir=BASE_DIR / "logs"):
+                                script_path=Path("/app/bin/Dataviz_Reportable_snps.py"), logs_dir=BASE_DIR / "logs"):
     """
     Reproduction du process Nextflow 'Dataviz_Reportable_snps' en Python.
     - Parcourt les fichiers CSV dans input_dir.
@@ -2060,7 +2005,7 @@ def run_dataviz_reportable_snps(input_dir=BASE_DIR / "output" / "Summary", out_d
 
 
 def run_DataViz_Novel_snps(input_dir=BASE_DIR / "output" / "Summary" / "Novel_snps.csv", out_dir=BASE_DIR / "output" / "Dataviz_Novel_snps",
-                            script_path=BASE_DIR / "bin" / "Dataviz_Novel_snps.py", logs_dir=BASE_DIR / "logs"):
+                            script_path=Path("/app/bin/Dataviz_Novel_snps.py"), logs_dir=BASE_DIR / "logs"):
     """
     Exécute le script Dataviz_Novel_snps.py sur le fichier spécifié,
     sauvegarde les logs dans logs/Dataviz_Novel_snps.log,P1	Pfdhps	1486	5547	71.0%	A437G	SNP	Mutant
@@ -2514,18 +2459,142 @@ def run_combined_haplotypes(input_file=BASE_DIR / "output" / "haplotypes" / "fil
     print(f"✅ Fichier généré : {output_path}")
 
 
-
+def compute_haplotype_frequencies(
+    input_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
+    output_dir=BASE_DIR / "output" / "haplotypes",
+    output_name="haplotype_frequencies.csv",
+    logs_dir=BASE_DIR / "logs",
+):
+ 
+    log_step("Calcul des fréquences d'haplotypes (individuels uniquement)")
+ 
+    input_file = Path(input_file)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+ 
+    if not input_file.exists():
+        print(f"[WARNING] Fichier introuvable : {input_file}")
+        print("[WARNING] Assurez-vous que run_combined_haplotypes() a été exécuté.")
+        return
+ 
+    # ── Lecture ──────────────────────────────
+    df = pd.read_csv(input_file, dtype=str).fillna("")
+    print(f"[INFO] {len(df)} lignes chargées depuis {input_file.name}")
+ 
+    # ── Colonnes ─────────────────────────────
+    sample_col = "Sample"
+    if sample_col not in df.columns:
+        print(f"[ERROR] Colonne '{sample_col}' introuvable dans {input_file.name}")
+        return
+ 
+    haplo_cols = [c for c in df.columns if c != sample_col]
+    if not haplo_cols:
+        print("[ERROR] Aucune colonne haplotype trouvée.")
+        return
+ 
+    # ── Filtre individuel ─────────────────────
+    def _is_individual(sample_name):
+        """Individuel si aucun P suivi de chiffres dans le nom (logique AMD)."""
+        m = re.search(r'P(\d+)', str(sample_name))
+        if m:
+            return int(m.group(1)) <= 1
+        return True
+ 
+    def _is_null(val):
+        """Haplotype non valide si commence par 'nul' (insensible à la casse)."""
+        return str(val).strip().lower().startswith("nul")
+ 
+    df_indiv = df[df[sample_col].apply(_is_individual)].copy()
+    n_individual_total = len(df_indiv)
+    n_pooled           = len(df) - n_individual_total
+ 
+    print(f"[INFO] Échantillons totaux     : {len(df)}")
+    print(f"[INFO] Échantillons individuels: {n_individual_total}")
+    print(f"[INFO] Échantillons poolés     : {n_pooled} (exclus du calcul)")
+ 
+    if df_indiv.empty:
+        print("[WARNING] Aucun échantillon individuel détecté. Vérifiez la nomenclature AMD.")
+        return
+ 
+    # ── Calcul des fréquences ─────────────────
+    results = []
+ 
+    for gene in haplo_cols:
+        serie       = df_indiv[gene].copy()
+        mask_null   = serie.apply(_is_null)
+        serie_valid = serie[~mask_null]
+ 
+        n_valid        = len(serie_valid)
+        n_null         = mask_null.sum()
+        vc             = serie_valid.value_counts()
+ 
+        print(f"\n[GENE] {gene}")
+        print(f"  N individuel total : {n_individual_total}")
+        print(f"  N valide           : {n_valid}")
+        print(f"  N exclus (null)    : {n_null}")
+ 
+        if serie_valid.empty:
+            print(f"  [WARNING] Aucun haplotype valide pour {gene}.")
+            continue
+ 
+        for haplo, count in vc.items():
+            pct = round(count / n_valid * 100, 2) if n_valid > 0 else 0.0
+            print(f"  {haplo:<30} N={count}  {pct:.1f}%")
+            results.append({
+                "Gene":               gene,
+                "Haplotype":          haplo,
+                "N":                  int(count),
+                "Pct":                pct,
+                "N_individual_total": n_individual_total,
+                "N_valid":            n_valid,
+                "N_excluded_null":    int(n_null),
+            })
+ 
+    if not results:
+        print("[WARNING] Aucun résultat à enregistrer.")
+        return
+ 
+    # ── Export CSV ────────────────────────────
+    df_out      = pd.DataFrame(results)
+    output_path = output_dir / output_name
+    df_out.to_csv(output_path, index=False)
+    print(f"\n✅ Fréquences enregistrées : {output_path}")
+ 
+    # ── Log ───────────────────────────────────
+    if logs_dir:
+        log_path = Path(logs_dir) / "haplotype_frequencies.log"
+        with open(log_path, "w") as lf:
+            lf.write(f"compute_haplotype_frequencies\n")
+            lf.write(f"Input  : {input_file}\n")
+            lf.write(f"Output : {output_path}\n")
+            lf.write(f"Echantillons totaux      : {len(df)}\n")
+            lf.write(f"Echantillons individuels : {n_individual_total}\n")
+            lf.write(f"Echantillons pools exclus: {n_pooled}\n\n")
+            for gene in haplo_cols:
+                lf.write(f"[{gene}]\n")
+                gene_rows = [r for r in results if r["Gene"] == gene]
+                if not gene_rows:
+                    lf.write("  Aucun haplotype valide.\n")
+                    continue
+                n_valid = gene_rows[0]["N_valid"]
+                n_null  = gene_rows[0]["N_excluded_null"]
+                lf.write(f"  N valide : {n_valid}  |  N exclus (null) : {n_null}\n")
+                for r in gene_rows:
+                    lf.write(f"  {r['Haplotype']:<30} N={r['N']}  {r['Pct']:.1f}%\n")
+                lf.write("\n")
+ 
+    return df_out
 
 #======================================================================
 # Generation du rapport final par site
 #======================================================================
 
-def generate_final_report_by_site(
+def generate_simple_final_report_by_site(
     reportable_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
     combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
-    vaf_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv",
+    vaf_file=BASE_DIR / "output" / "Sample_VAF_merge" / "Sample_VAF_merge.csv",
     out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
-    pdf_name="Final_Report.pdf"
+    pdf_name="Simple_final_Report.pdf"
 ):
 
     # --- Créer les dossiers ---
@@ -2586,7 +2655,7 @@ def generate_final_report_by_site(
 
     # --- Methodology section ---
     methodology_text = """
-    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools.To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF × weight) / Σ(weight) ] × 100. In this report, mixed infections (MIX) were retained in their specific category for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
+    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools.To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF) / N ] × 100. In this report, mixed infections (MIX) were retained in their specific category for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
         """
 
     story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
@@ -2976,57 +3045,63 @@ def generate_final_report_by_site(
 
         story.append(Spacer(1,18))
 
-    # --- Header & Footer ---
-    def draw_header(canvas, doc, logo_path):
-        canvas.saveState()
-        canvas.setFillColor(colors.lightblue)
-        canvas.rect(0, doc.height+doc.topMargin+10, doc.width+2*doc.leftMargin, 25, fill=1)
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=doc.height+doc.topMargin+12, width=55, height=18, preserveAspectRatio=True, mask='auto')
-        canvas.setFillColor(colors.black)
-        canvas.setFont("Helvetica-Bold",12)
-        canvas.drawString(doc.leftMargin+55, doc.height+doc.topMargin+18,"CIGASS — UCAD — Sénégal")
-        canvas.restoreState()
+    
+    # --- Header & Footer (corrigé) ---
+        def draw_header(canvas, doc, logo_path):
+            canvas.saveState()
+            # Bandeau positionné juste au-dessus de la zone de contenu, dans la page
+            header_y = doc.pagesize[1] - doc.topMargin + 10
+            canvas.setFillColor(colors.lightblue)
+            canvas.rect(0, header_y, doc.pagesize[0], 30, fill=1, stroke=0)
+            if os.path.exists(logo_path):
+                canvas.drawImage(logo_path, x=doc.leftMargin, y=header_y + 5,
+                                  width=55, height=20, preserveAspectRatio=True, mask='auto')
+            canvas.setFillColor(colors.black)
+            canvas.setFont("Helvetica-Bold", 12)
+            canvas.drawString(doc.leftMargin + 60, header_y + 10, "CIGASS — UCAD — Sénégal")
+            canvas.restoreState()
+    
+        def draw_footer(canvas, doc, logo_path):
+            canvas.saveState()
+            footer_y = doc.bottomMargin - 20
+            if os.path.exists(logo_path):
+                canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y,
+                                  width=40, height=15, preserveAspectRatio=True, mask='auto')
+            canvas.setFont("Helvetica", 10)
+            canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, footer_y + 3, f"Page {doc.page}")
+            canvas.restoreState()
+    
+        def decorate_page(canvas, doc):
+            draw_header(canvas, doc, str(logo_path))
+            draw_footer(canvas, doc, str(logo_path))
+    
+        # --- Générer le PDF avec marges explicites ---
+        doc = SimpleDocTemplate(
+            str(pdf_path),
+            pagesize=A4,
+            topMargin=60,
+            bottomMargin=50,
+            leftMargin=30,
+            rightMargin=30
+        )
+        frame = Frame(
+            doc.leftMargin,
+            doc.bottomMargin,
+            doc.width,
+            doc.height,
+            id="normal"
+        )
+        page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
+        doc.addPageTemplates([page_template])
+        doc.build(story)
 
-    def draw_footer(canvas, doc, logo_path):
-        canvas.saveState()
-        footer_y = 8*mm
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y, width=40, height=15, preserveAspectRatio=True, mask='auto')
-        canvas.setFont("Helvetica",10)
-        canvas.drawRightString(doc.width+doc.leftMargin, footer_y+3,f"Page {doc.page}")
-        canvas.restoreState()
 
-    def decorate_page(canvas, doc):
-        draw_header(canvas, doc, str(logo_path))
-        draw_footer(canvas, doc, str(logo_path))
-
-    # --- Générer le PDF ---
-    doc = SimpleDocTemplate(str(pdf_path),pagesize=A4)
-    frame = Frame(doc.leftMargin, doc.bottomMargin+30, doc.width, doc.height-60, id="normal")
-    page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
-    doc.addPageTemplates([page_template])
-    doc.build(story)
-
-    # --- Nettoyer les images temporaires ---
-    for f in img_dir.glob("*"):
-        try: f.unlink()
-        except: pass
-
-    print(f"✅ Rapport combiné généré : {pdf_path}")
-    return str(pdf_path)
-
-
-
-
-
-
-def generate_final_report_by_site_MT_MIX(
+def generate_simple_final_report_by_site_MT_MIX(
     reportable_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
     combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
-    vaf_file=BASE_DIR / "output" / "SVAF_merge" / "SVAF_merge.csv",
+    vaf_file=BASE_DIR / "output" / "Sample_VAF_merge" / "Sample_VAF_merge.csv",
     out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
-    pdf_name="Final_Report_MT_MIX.pdf"
+    pdf_name="Simple_Final_Report_MT_MIX.pdf"
 ):
 
     # --- Créer les dossiers ---
@@ -3088,7 +3163,7 @@ def generate_final_report_by_site_MT_MIX(
 
     # --- Methodology section ---
     methodology_text = """
-    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools. To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF × weight) / Σ(weight) ] × 100. In this report, mixed infections (MIX) were considered as carrying the mutant allele for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
+    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools. To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF) / N ] × 100. In this report, mixed infections (MIX) were considered as carrying the mutant allele for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
     """
 
     story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
@@ -3272,36 +3347,7 @@ def generate_final_report_by_site_MT_MIX(
                 table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP","N of sample","Wild-type (N, %)","Mutant (N, %)","%VAF_MT"]])
 
                 snp_values_for_plot = []
-                """
-                for snp in snps:
-                    df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
-                    df_snp["AVG_VAF"] = df_snp["LSDB_Sequence_ID"].apply(lambda x: load_svaf(x, snp))
 
-                    mask_wt  = df_snp[snp] == "WT"
-                    mask_mut = df_snp[snp].isin(["MT","MIX"])  # <-- MIX compté comme MT
-                    mask_valid = df_snp[snp].isin(["WT","MT","MIX"])
-
-                    n_total = df_snp.loc[mask_valid, "__WEIGHT__"].sum()
-                    n_wt = df_snp.loc[mask_wt, "__WEIGHT__"].sum()
-                    n_mut = df_snp.loc[mask_mut, "__WEIGHT__"].sum()
-
-                    pct_wt = (n_wt / n_total * 100) if n_total > 0 else 0
-                    pct_mut = (n_mut / n_total * 100) if n_total > 0 else 0
-
-                    num_mut = (df_snp.loc[mask_mut, "AVG_VAF"] * df_snp.loc[mask_mut, "__WEIGHT__"]).sum()
-                    den_mut = df_snp.loc[mask_mut | mask_wt, "__WEIGHT__"].sum()
-                    vaf_mut = (num_mut / den_mut * 100) if den_mut > 0 else 0
-
-                    table_data_wrapped.append([
-                        Paragraph(str(snp), style_cell),
-                        Paragraph(str(int(n_total)), style_cell),
-                        Paragraph(f"({int(n_wt)}, {pct_wt:.1f}%)", style_cell),
-                        Paragraph(f"({int(n_mut)}, {pct_mut:.1f}%)", style_cell),
-                        Paragraph(f"{vaf_mut:.1f}%", style_cell)
-                    ])
-
-                    snp_values_for_plot.append((snp, int(n_wt), int(n_mut)))
-                """
                 
                 for snp in snps:
                     df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
@@ -3459,47 +3505,54 @@ def generate_final_report_by_site_MT_MIX(
 
         story.append(Spacer(1,18))
 
-    # --- Header & Footer (inchangé) ---
+    # --- Header & Footer (corrigé) ---
     def draw_header(canvas, doc, logo_path):
         canvas.saveState()
+        # Bandeau positionné juste au-dessus de la zone de contenu, dans la page
+        header_y = doc.pagesize[1] - doc.topMargin + 10
         canvas.setFillColor(colors.lightblue)
-        canvas.rect(0, doc.height+doc.topMargin+10, doc.width+2*doc.leftMargin, 25, fill=1)
+        canvas.rect(0, header_y, doc.pagesize[0], 30, fill=1, stroke=0)
         if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=doc.height+doc.topMargin+12, width=55, height=18, preserveAspectRatio=True, mask='auto')
+            canvas.drawImage(logo_path, x=doc.leftMargin, y=header_y + 5,
+                              width=55, height=20, preserveAspectRatio=True, mask='auto')
         canvas.setFillColor(colors.black)
-        canvas.setFont("Helvetica-Bold",12)
-        canvas.drawString(doc.leftMargin+55, doc.height+doc.topMargin+18,"CIGASS — UCAD — Sénégal")
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.drawString(doc.leftMargin + 60, header_y + 10, "CIGASS — UCAD — Sénégal")
         canvas.restoreState()
 
     def draw_footer(canvas, doc, logo_path):
         canvas.saveState()
-        footer_y = 8*mm
+        footer_y = doc.bottomMargin - 20
         if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y, width=40, height=15, preserveAspectRatio=True, mask='auto')
-        canvas.setFont("Helvetica",10)
-        canvas.drawRightString(doc.width+doc.leftMargin, footer_y+3,f"Page {doc.page}")
+            canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y,
+                              width=40, height=15, preserveAspectRatio=True, mask='auto')
+        canvas.setFont("Helvetica", 10)
+        canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, footer_y + 3, f"Page {doc.page}")
         canvas.restoreState()
 
     def decorate_page(canvas, doc):
         draw_header(canvas, doc, str(logo_path))
         draw_footer(canvas, doc, str(logo_path))
 
-    # --- Générer le PDF ---
-    doc = SimpleDocTemplate(str(pdf_path),pagesize=A4)
-    frame = Frame(doc.leftMargin, doc.bottomMargin+30, doc.width, doc.height-60, id="normal")
+    # --- Générer le PDF avec marges explicites ---
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        topMargin=60,
+        bottomMargin=50,
+        leftMargin=30,
+        rightMargin=30
+    )
+    frame = Frame(
+        doc.leftMargin,
+        doc.bottomMargin,
+        doc.width,
+        doc.height,
+        id="normal"
+    )
     page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
     doc.addPageTemplates([page_template])
     doc.build(story)
-
-    # --- Nettoyer les images temporaires ---
-    for f in img_dir.glob("*"):
-        try: f.unlink()
-        except: pass
-
-    print(f"✅ Rapport combiné généré : {pdf_path}")
-    return str(pdf_path)
-
-
 
 
 if __name__ == "__main__":
@@ -3513,12 +3566,12 @@ if __name__ == "__main__":
     global_start = time.time()
 
     
-  
+    
     # Lancement QC_pre_trimming
     log_step("QC pré-trimming")
     QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "QC_pre_trimming")
-
-
+    
+    
     # Lancement MultiQC_pre_trimming
     log_step("QC pré-trimming")
     MultiQC_pre_trimming(output_dir=BASE_DIR / "output" / "QC_pre_trimming", report_name="MultiQC_pre_trimming_report.html")
@@ -3526,9 +3579,9 @@ if __name__ == "__main__":
 
     # Lancement Trimming avec BBduk
     log_step("Trimming")
-    trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file=BASE_DIR / "pf_3D7_Ref" / "adapters.fa")
+    trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trimmed_reads", adapter_file = Path("/ref/adapters.fa"))
 
-
+    
     # Lancement QC_post_trimming
     log_step("QC post-trimming")
     QC_post_trimming(input_dir=BASE_DIR / "output" / "trimmed_reads", output_dir=BASE_DIR / "output" / "QC_post_trimming")
@@ -3537,19 +3590,19 @@ if __name__ == "__main__":
     # Lancement MultiQC_post_trimming
     log_step("MultiQC post-trimming")
     MultiQC_post_trimming(output_dir=BASE_DIR / "output" / "QC_post_trimming", report_name="MultiQC_post_trimming_report.html")
-
+    
     
     
     # Lancement bwa_index
     log_step("BWA index")
-    reference = BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta"  # chemin vers la référence
+    reference = Path("/ref/mars_pf_ref.fasta") # chemin vers la référence
     bwa_index(reference)
 
-    
+
     # Lancement bwa_align
     log_step("BWA align")
     bwa_align()
-
+    
 
     # Lancement picard_add_readgroups
     log_step("Picard add readgroups")
@@ -3569,26 +3622,24 @@ if __name__ == "__main__":
     # Lancement la creation de la base de donnee
     log_step("Build snpEff database")
     build_snpeff_db(db_name=BASE_DIR / "pf_3D7_snpEff_db", 
-        snpeff_config=BASE_DIR / "pf_3D7_snpEff_db",
+        snpeff_config=Path("/snpeff_db"),
         output_dir=BASE_DIR / "output")
         
     # Lancement l'annotation
     log_step("Annotate VCFs")
     annotated = annotate_all_vcfs()
-
+    
     
     # Lancement vartype
     log_step("Run Vartype")
-    BASE_DIR = Path(__file__).resolve().parent
-    env_path = BASE_DIR / "miniconda3" / "envs" / "pipeline_env"
     logs_dir = BASE_DIR / "logs"
-    
+
     results = run_vartype_all(
         input_dir=BASE_DIR / "output" / "vcf_annotated",
         output_dir=BASE_DIR / "output" / "vartype",
-        env_path=env_path,
-        logs_dir=logs_dir)
-    
+        logs_dir=logs_dir
+    )
+
     print("\n[PIPELINE] Résultats Vartype :")
     for sample, files in results.items():
         print(f"  - {sample}: {files}")
@@ -3602,15 +3653,15 @@ if __name__ == "__main__":
 
     # Lancement wt_coverage
     log_step("WT Coverage")
-    ref = BASE_DIR / "pf_3D7_Ref" / "mars_pf_ref.fasta"
-    gff = BASE_DIR / "pf_3D7_Ref" / "mars_pf.gff"
-    voi = BASE_DIR / "pf_3D7_Ref" / "voinew3.csv"
+    ref = Path("/ref/mars_pf_ref.fasta")
+    gff = Path("/ref/mars_pf.gff")
+    voi = Path("/ref/voinew3.csv")
     results = run_wt_cov(ref, gff, voi)
     print("[PIPELINE] Résultats WT_cov générés :")
     for sample, path in results.items():
         print(f"  - {sample}: {path}")
 
-
+    
     # Lancement Trim_Stats
     log_step("Trim_Stats")
     trim_stats_results = run_trim_stats()
@@ -3633,14 +3684,14 @@ if __name__ == "__main__":
     log_step("Run CSV merge with report")
     run_csv_merge_with_report()
     
-    
+
     # Lancement compute_sample_vaf
     log_step("Compute sample VAF")
     compute_sample_vaf()
     
-    # Lancement run_SVAF_merge
-    log_step("Run SVAF merge")
-    run_SVAF_merge()
+    # Lancement run_VAF_merge
+    log_step("Run VAF merge")
+    run_VAF_merge()
     
     
     #Lancement run_snpfilter
@@ -3701,17 +3752,19 @@ if __name__ == "__main__":
     log_step("Run combined haplotypes")
     run_combined_haplotypes()
     
-    
+    # Calcul des fréquences d'haplotypes (individuel uniquement)
+    log_step("Calcul fréquences haplotypes")
+    compute_haplotype_frequencies()
+
     # Lancement generate_final_report_by_site
-    log_step("Generate final report by site")
-    generate_final_report_by_site()
-    
-    # Lancement generate_final_report_by_site avec MIX compté comme Mutant
-    log_step("Generate final report by site (MIX as MT)")
-    generate_final_report_by_site_MT_MIX()
-    
+    log_step("Generate simple final report by site")
+    generate_simple_final_report_by_site()
 
+    # Lancement generate_simple_final_report_by_site_MT_MIX
+    log_step("Generate simple final report by site (MIX as MT)")
+    generate_simple_final_report_by_site_MT_MIX()
 
+    
     total_elapsed = time.time() - global_start
     print(f"\n[PIPELINE] Analyses terminées avec succès en {total_elapsed:.2f} sec.")
     print("[PIPELINE] Fin du pipeline.")  

@@ -1,6 +1,9 @@
 # Résultats & logs
 output/
 logs/
+.streamlit/secrets.toml
+venv/
+runs
 
 # Données
 dada1/
@@ -18,3 +21,5 @@ __pycache__/
 *.csv
 *.html
 *.txt
+*.json
+*.fastq.gz

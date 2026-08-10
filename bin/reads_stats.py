@@ -102,11 +102,29 @@ new_header = Stats.iloc[0]
 Stats = Stats[1:]
 Stats.columns = new_header
 Stats = Stats.rename(columns={'#Total': 'Total_Raw_Reads'})
-
+"""
 # Extraction du nom d’échantillon
 new = Stats["#File"].str.split("_", n=1, expand=True)
 #Stats['Sample_name'] = new[0].str.strip().str.lower()
-Stats['Sample_name'] = new[0].str.replace('data/', '', regex=False).str.strip().str.lower()
+#Stats['Sample_name'] = new[0].str.replace('data/', '', regex=False).str.strip().str.lower()
+Stats['Sample_name'] = (
+    new[0]
+    .apply(lambda x: Path(str(x)).name)
+    .str.strip()
+    .str.lower()
+)
+"""
+# --- Nettoyage colonne #File ---
+Stats["#File"] = Stats["#File"].apply(
+    lambda x: Path(str(x)).name
+)
+
+# Extraction du nom d’échantillon
+new = Stats["#File"].str.split("_", n=1, expand=True)
+
+# garder la casse originale
+Stats['Sample_name'] = new[0].str.strip()
+
 
 
 print("\n[DEBUG] Stats DataFrame avant fusion :")
@@ -125,7 +143,8 @@ cov = cov.rename(columns={c: c + '_Reads_Aligned' for c in cov.columns if c in c
 
 Sample_name = Cov_file.split("/")[-1].split("_")[0]
 Sample_out = "_".join(Cov_file.split("/")[-1].split("_")[0:-1])
-cov['Sample_name'] = Sample_name.strip().lower()
+#cov['Sample_name'] = Sample_name.strip().lower()
+cov['Sample_name'] = Sample_name.strip()
 cov["Result"] = np.where(cov['Total_aligned_reads'] > 100, 'Pass', 'Fail')
 
 print("[DEBUG] Coverage DataFrame avant fusion :")

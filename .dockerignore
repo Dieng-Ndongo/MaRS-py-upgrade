@@ -1,0 +1,9 @@
+output/
+data/
+*.bam
+*.sam
+*.fastq
+*.fq
+logs/
+.git
+__pycache__/
