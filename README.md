@@ -56,37 +56,54 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 
 ---
 
-## 📁 Organisation du projet
+## 📁 Structure du projet
 
 ```text
-HOME/
-└── MaRS-py-upgrade/              # Dossier principal
-    |          
-    ├── data/                     # Données brutes (FASTQ)
-    │   └── *.fastq.gz
-    │
-    ├── bin/                      # Scripts secondaires appelés dans le script principale
-    │   
-    │
-    ├── output/                   # Résultats générés
-    │
-    │
-    ├── logs/                     # Logs d’exécution
-    │   └── *.log
-    │
-    ├── pf_3D7/                   # Génome de référence
-    │
-    ├── pf_3D7_snpEff_db          # Création du base d'annotation
-    |
-    |  
-    ├── images                    # dossier contenant des images
-    |    
-    |
-    ├── pipeline_python.py        # Script du pipeline  
-    ├── environment.yml           # environment       
-    ├── Dockerfile                # Fichier docker
-    └── README.md                 # Fichier README
-
+MaRS-py-upgrade/
+│
+├── 📂 bin/
+│   ├── dashboard_page.py       # Page principale du tableau de bord
+│   ├── pdf_export.py           # Génération des rapports PDF
+│   ├── progress_tracker.py     # Suivi de la progression du pipeline
+│   ├── qc_dashboard.py         # Visualisation des résultats de contrôle qualité
+│   ├── reads_stats.py          # Calcul des statistiques sur les reads
+│   └── results_page.py         # Affichage des résultats d'analyse
+│
+├── 📂 pf_3D7/
+│   └── ...                     # Génome de référence de Plasmodium falciparum
+│
+├── 📂 pf_3D7_snpEff_db/
+│   └── ...                     # Base de données d'annotation SnpEff
+│
+├── 📂 images/
+│   ├── bioinf.jpeg
+│   └── bioinfo.jpeg            # Images utilisées dans l'interface
+│
+├── 📂 runs/
+│   └── run_id/
+│       ├── 📂 data/
+│       │   └── *.fastq.gz      # Données de séquençage d'entrée
+│       │
+│       ├── 📂 output/
+│       │   └── ...             # Résultats de l'analyse
+│       │
+│       └── 📂 log/
+│           └── ...             # Journaux d'exécution
+│
+├── 📂 .agents/
+│   └── skills/
+│       └── developing-with-streamlit/
+│                               # Ressources pour le développement Streamlit
+│
+├── 🐍 pipeline_python.py       # Script principal du pipeline
+├── 🖥️ app.py                   # Interface utilisateur Streamlit
+├── 🐳 Dockerfile               # Configuration de l'image Docker
+├── 📦 environment.yml          # Environnement et dépendances Conda
+├── 📄 requirements.txt         # Dépendances Python
+├── 🚀 start.sh                 # Script de lancement du pipeline
+├── 📄 .dockerignore            # Fichiers exclus de l'image Docker
+├── 📄 .gitignore               # Fichiers exclus du dépôt Git
+└── 📖 README.md                # Documentation du projet
 ```
 ---
 
