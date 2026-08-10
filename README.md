@@ -94,8 +94,7 @@ MaRS-py-upgrade/
 ├── 📄 .dockerignore            # Fichiers exclus de l'image Docker
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
----
----
+
 
 ```markdown
 ## 📌 Description des principaux composants
