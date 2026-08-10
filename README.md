@@ -94,9 +94,11 @@ MaRS-py-upgrade/
 ├── 📄 .dockerignore            # Fichiers exclus de l'image Docker
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
+---
+---
 
 ```markdown
-### 📌 Description des principaux composants
+## 📌 Description des principaux composants
 
 | Élément | Description |
 |---|---|
@@ -107,7 +109,7 @@ MaRS-py-upgrade/
 | `pf_3D7_snpEff_db/` | Contient les fichiers nécessaires à l'annotation des variants avec SnpEff. |
 | `runs/` | Regroupe les résultats générés pour chaque analyse. |
 | `environment.yml` | Définit l'environnement Conda et les dépendances du pipeline. |
-| `requirements.txt` | Liste les dépendances Python nécessaires à l'interface et aux scripts associés. |
+| `requirements.txt` | Liste les dépendances Python nécessaires à l'interface. |
 | `Dockerfile` | Permet de construire l'environnement d'exécution du pipeline avec Docker. |
 | `start.sh` | Automatise le lancement du pipeline et/ou de l'interface. |
 | `.gitignore` | Définit les fichiers et répertoires qui ne doivent pas être suivis par Git. |
