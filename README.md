@@ -1,15 +1,15 @@
 # MaRS-py-upgrade 
-**Réimplémentation et extension du pipeline MaRS en Python pour l’analyse des marqueurs moléculaires de résistance de *Plasmodium falciparum***
+**Réimplémentation et extension du pipeline bioinformatique MaRS en language Python pour l’analyse des marqueurs moléculaires de résistance de *Plasmodium falciparum***
 
 ---
 
 ## Présentation générale
-**MaRS-py-upgrade** est un pipeline bioinformatique modulaire développé en **Python**, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
+**MaRS-py-upgrade** est un pipeline bioinformatique modulaire développé en **Python** avec interface web, destiné à l’analyse des données de séquençage NGS de *Plasmodium falciparum* afin d’identifier et de caractériser les marqueurs moléculaires associés à la résistance aux antipaludiques.
 
 Ce pipeline s’inscrit dans un cadre académique et de recherche, notamment pour l’analyse des gènes ***pfcrt***, ***pfmdr1***,***pfk13***, ***pfdhfr*** et ***pfdhps***, utilisés comme marqueurs de résistance aux traitements antipaludiques.
 
 Il s’agit d’une réimplémentation et d’une extension du pipeline **MaRS**, avec une architecture lisible, reproductible et automatisée. 
-Le pipeline peux etre utiliser via une interface graphique.
+Le pipeline est utiliser via une interface web.
 
 ---
 
@@ -20,12 +20,12 @@ Le pipeline peux etre utiliser via une interface graphique.
 - Analyser les haplotypes par gène et par site
 - Générer de rapport de synthèse et de visualisation exploitable
 - Garantir la traçabilité des analyses via des fichiers de logs
-- Rendre le pipeline MaRS accessible et facile d’utilisation
+- Rendre le pipeline MaRS accessible et facile d’utilisation via une interface web
 
 ---
 
 ## Données
-- Données de séquençage NGS (fastq compressés)
+- Données de séquençage NGS (fastq compressés(.fastq.gz))
 
 ### Nomenclature des echantillons
 
@@ -61,8 +61,8 @@ Le pipeline est structuré sous forme de modules fonctionnels indépendants, ex�
 ```text
 MaRS-py-upgrade/
 │
-├── 📂 bin/        # Scripts secondaires
-│      └── ... 
+├── 📂 bin/        
+│      └── ...                  # Scripts secondaires
 |
 ├── 📂 pf_3D7/
 │   └── ...                     # Génome de référence de Plasmodium falciparum
