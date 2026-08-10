@@ -95,8 +95,7 @@ MaRS-py-upgrade/
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
 
-
-```markdown
+---
 ## 📌 Description des principaux composants
 
 | Élément | Description |
@@ -112,7 +111,7 @@ MaRS-py-upgrade/
 | `Dockerfile` | Permet de construire l'environnement d'exécution du pipeline avec Docker. |
 | `start.sh` | Automatise le lancement du pipeline et/ou de l'interface. |
 | `.gitignore` | Définit les fichiers et répertoires qui ne doivent pas être suivis par Git. |
-```
+
 ---
 
 ## Prérequis
@@ -172,6 +171,6 @@ docker build -t bioinfo_pipeline .
 
 ```bash
 
-docker run --rm -it -v $(pwd):/app -w /app bioinfo_pipeline
+./start.sh
 
 ```
