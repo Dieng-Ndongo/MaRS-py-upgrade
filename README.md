@@ -94,7 +94,7 @@ MaRS-py-upgrade/
 ├── 📄 .dockerignore            # Fichiers exclus de l'image Docker
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
-
+---
 ---
 ## 📌 Description des principaux composants
 
@@ -112,6 +112,7 @@ MaRS-py-upgrade/
 | `start.sh` | Automatise le lancement du pipeline et/ou de l'interface. |
 | `.gitignore` | Définit les fichiers et répertoires qui ne doivent pas être suivis par Git. |
 
+---
 ---
 
 ## Prérequis
