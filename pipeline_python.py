@@ -2445,7 +2445,7 @@ def run_combined_haplotypes(input_file=BASE_DIR / "output" / "haplotypes" / "fil
     df = pd.read_csv(input_file)
 
     # Construction des nouvelles colonnes
-    df["DHFR and DHPS"] = df["DHFR"].astype(str) + "/" + df["DHPS"].astype(str)
+    df["DHFR and DHPS"] = df["DHFR"].astype(str) + "/" + df["DHPS"].astype(str).str[:6]
     df["CRT"] = df["CRT"].astype(str).str[:5]
     df["MDR"] = df["MDR"].astype(str).str[:3]
 

@@ -2242,15 +2242,20 @@ elif active_page == "pipeline":
             paths["output"].mkdir(parents=True, exist_ok=True)
             paths["logs"].mkdir(parents=True, exist_ok=True)
 
+            CHUNK = 64 * 1024 * 1024  # 64 Mo par chunk — évite le pic mémoire
             for n in names:
                 file_r1 = n.get("file_r1")
                 file_r2 = n.get("file_r2")
                 if file_r1:
+                    file_r1.seek(0)
                     with open(paths["input"] / safe_filename(n["r1"]), "wb") as f:
-                        f.write(file_r1.getbuffer())
+                        while chunk := file_r1.read(CHUNK):
+                            f.write(chunk)
                 if file_r2:
+                    file_r2.seek(0)
                     with open(paths["input"] / safe_filename(n["r2"]), "wb") as f:
-                        f.write(file_r2.getbuffer())
+                        while chunk := file_r2.read(CHUNK):
+                            f.write(chunk)
 
             log_file = paths["logs"] / "pipeline.log"
             with open(log_file, "w") as lf:
