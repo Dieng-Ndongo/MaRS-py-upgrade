@@ -8,6 +8,8 @@ import zipfile
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 import openpyxl
+import smtplib
+from email.message import EmailMessage
 
 import sys
 import os
@@ -154,11 +156,43 @@ def delete_run_from_history(run_id):
 # ════════════════════════════════════════════════
 # HELPERS — NOTIFICATIONS
 # ════════════════════════════════════════════════
+def send_email_notification(run_id, n_samples, duration_sec, success):
+    try:
+        email_cfg = st.secrets.get("EMAIL", {})
+        if not email_cfg.get("enabled"):
+            return
+        from_addr = email_cfg.get("from")
+        to_addr   = email_cfg.get("to")
+        password  = email_cfg.get("password")
+        if not (from_addr and to_addr and password):
+            return
+        dur_str = f"{duration_sec // 60} min {duration_sec % 60} s"
+        status  = "Succès" if success else "Échec"
+        msg = EmailMessage()
+        msg["Subject"] = f"[MaRS-py-upgrade] Run {run_id} — {status}"
+        msg["From"] = from_addr
+        msg["To"] = to_addr
+        msg.set_content(
+            f"Run {run_id} terminé — {status}\n"
+            f"Échantillons analysés : {n_samples}\n"
+            f"Durée : {dur_str}"
+        )
+        smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
+        smtp_port = email_cfg.get("smtp_port", 587)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as smtp:
+            smtp.starttls()
+            smtp.login(from_addr, password)
+            smtp.send_message(msg)
+    except Exception:
+        pass
+
+
 def notify_pipeline_done(run_id, n_samples, duration_sec, success):
     if not st.session_state.get("notif_enabled", True):
         return
     if st.session_state.get("notif_failure_only") is True and success:
         return
+    send_email_notification(run_id, n_samples, duration_sec, success)
     dur_str = f"{duration_sec // 60} min {duration_sec % 60} s"
     banner = {
         "type": "success" if success else "error",
