@@ -118,11 +118,23 @@ MaRS-py-upgrade/
 ## Prérequis
 - Système d'exploitation de type Unix (Linux, macOS, etc.) 
 - Docker
+- Python 3.12 (pour l'interface Streamlit ; l'environnement conda du pipeline reste en Python 3.10 dans le conteneur Docker)
 
 ---
 
 ## Installation
-### 1. Installer Docker
+### 1. Installer Python 3.12
+Ubuntu 22.04 n'installe pas Python 3.12 par défaut, il faut passer par le PPA `deadsnakes` :
+```bash
+
+sudo apt update && sudo apt install -y software-properties-common
+
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+
+sudo apt update && sudo apt install -y python3.12 python3.12-venv
+
+```
+### 2. Installer Docker
 Pour installer Docker, executer succesivement les commandes suivantes dans le terminale :
 ```bash
 
@@ -152,7 +164,7 @@ sudo usermod -aG docker $USER
 
 newgrp docker
 ```
-### 2. Télécharger le dépôt git
+### 3. Télécharger le dépôt git
 
 ```bash
 
@@ -161,14 +173,14 @@ git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade
 cd MaRS-py-upgrade
 
 ```
-### 3. Construction de l'image docker
+### 4. Construction de l'image docker
 
 ```bash
 
 docker build -t bioinfo_pipeline .
 
 ```
-### 4. Exécution du pipeline
+### 5. Exécution du pipeline
 
 ```bash
 

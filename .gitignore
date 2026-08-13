@@ -184,6 +184,10 @@ __pycache__/
 *.csv
 *.html
 *.txt
+
+# the broad *.txt gitignore rule was silently swallowing the new requirements.txt, which would have made the whole Python 3.12 fix a no-op on a fresh clone
+!requirements.txt
+
 *.json
 *.fastq.gz
 .agents/
