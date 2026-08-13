@@ -20,5 +20,11 @@ if [ ! -d "$VENV_DIR" ]; then
     "$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
 fi
 
+# Éviter le prompt d'onboarding Streamlit (bloquant en exécution non-interactive)
+mkdir -p "$HOME/.streamlit"
+if [ ! -f "$HOME/.streamlit/credentials.toml" ]; then
+    printf '[general]\nemail = ""\n' > "$HOME/.streamlit/credentials.toml"
+fi
+
 source "$VENV_DIR/bin/activate"
 streamlit run "$SCRIPT_DIR/app.py"
