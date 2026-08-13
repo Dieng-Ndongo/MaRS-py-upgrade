@@ -27,4 +27,4 @@ if [ ! -f "$HOME/.streamlit/credentials.toml" ]; then
 fi
 
 source "$VENV_DIR/bin/activate"
-streamlit run "$SCRIPT_DIR/app.py"
+exec streamlit run "$SCRIPT_DIR/app.py"

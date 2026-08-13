@@ -187,3 +187,57 @@ docker build -t bioinfo_pipeline .
 ./start.sh
 
 ```
+
+---
+
+## Déploiement en production (systemd + Cloudflare Tunnel)
+
+Pour un déploiement persistant sur le serveur (survit aux déconnexions SSH et aux redémarrages), l'app tourne comme service systemd sous un utilisateur dédié, exposée via un tunnel Cloudflare existant plutôt qu'un reverse proxy public.
+
+### 1. Créer l'utilisateur dédié et déployer le dépôt
+```bash
+
+sudo useradd -r -M -d /opt/mars-py-upgrade -s /usr/sbin/nologin mars
+
+sudo git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade /opt/mars-py-upgrade
+
+sudo usermod -aG docker mars
+
+sudo chown -R mars:mars /opt/mars-py-upgrade
+
+```
+Copiez `.streamlit/secrets.toml.example` vers `.streamlit/secrets.toml` dans `/opt/mars-py-upgrade` et remplissez `APP_PASSWORD` et, si besoin, la section `[EMAIL]`.
+
+### 2. Installer le service systemd
+```bash
+
+sudo cp /opt/mars-py-upgrade/deploy/mars-streamlit.service /etc/systemd/system/
+
+sudo systemctl daemon-reload
+
+sudo systemctl enable --now mars-streamlit
+
+sudo systemctl status mars-streamlit
+
+```
+Le premier démarrage crée le venv Python 3.12 et installe `requirements.txt` (voir `start.sh`) ; les démarrages suivants sont quasi instantanés.
+
+### 3. Exposer l'app via Cloudflare Tunnel
+L'app écoute uniquement en local (`127.0.0.1:8501`, voir `.streamlit/config.toml`) — aucun port public n'est ouvert. Ajoutez une règle d'ingress dans la config `cloudflared` existante du serveur (`/etc/cloudflared/config.yml`) :
+```yaml
+
+ingress:
+  - hostname: mars.votredomaine.tld
+    service: http://localhost:8501
+  # ... règles des autres apps déjà en place ...
+  - service: http_status:404
+
+```
+Puis routez le DNS et relancez le tunnel :
+```bash
+
+cloudflared tunnel route dns <nom-du-tunnel> mars.votredomaine.tld
+
+sudo systemctl restart cloudflared
+
+```
