@@ -1,7 +1,6 @@
 # Résultats & logs
 output/
 logs/
-.streamlit/secrets.toml
 venv/
 runs
 
