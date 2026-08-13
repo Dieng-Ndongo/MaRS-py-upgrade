@@ -191,3 +191,8 @@ __pycache__/
 *.json
 *.fastq.gz
 .agents/
+
+# Secrets Streamlit (garder .streamlit/config.toml, jamais les credentials)
+.streamlit/secrets.toml
+.streamlit/credentials.toml
+.streamlit/machine_id_v4
