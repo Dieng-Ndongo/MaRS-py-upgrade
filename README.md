@@ -180,7 +180,14 @@ cd MaRS-py-upgrade
 docker build -t bioinfo_pipeline .
 
 ```
-### 5. Exécution du pipeline
+```bash
+### 5. Installer requirements.txt
+
+cd ~/MaRS-py-upgrade
+pip install -r requirements.txt
+```
+
+### 6. Exécution du pipeline
 
 ```bash
 
