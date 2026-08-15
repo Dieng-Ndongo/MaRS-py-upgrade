@@ -170,7 +170,7 @@ newgrp docker
 
 git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade
 
-cd MaRS-py-upgrade
+cd ~MaRS-py-upgrade
 
 ```
 ### 4. Construction de l'image docker
