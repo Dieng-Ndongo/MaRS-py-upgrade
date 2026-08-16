@@ -3,8 +3,10 @@
 # Répertoire du script (fonctionne quel que soit l'endroit où le repo est cloné)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/venv"
+REQ_FILE="$SCRIPT_DIR/requirements.txt"
+REQ_HASH_FILE="$VENV_DIR/.req_hash"
 
-# Créer le venv + installer les dépendances si absent
+# Créer le venv si absent
 if [ ! -d "$VENV_DIR" ]; then
     if ! command -v python3.12 >/dev/null 2>&1; then
         echo "[ERREUR] python3.12 est requis mais introuvable." >&2
@@ -17,7 +19,18 @@ if [ ! -d "$VENV_DIR" ]; then
     echo "[INFO] Création du venv Streamlit..."
     python3.12 -m venv "$VENV_DIR"
     "$VENV_DIR/bin/pip" install --upgrade pip
-    "$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
+fi
+
+# Réinstaller les dépendances si requirements.txt a changé
+CURRENT_HASH=$(md5sum "$REQ_FILE" | cut -d' ' -f1)
+SAVED_HASH=$(cat "$REQ_HASH_FILE" 2>/dev/null || echo "")
+
+if [ "$CURRENT_HASH" != "$SAVED_HASH" ]; then
+    echo "[INFO] requirements.txt modifié — mise à jour des dépendances..."
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install -r "$REQ_FILE"
+    echo "$CURRENT_HASH" > "$REQ_HASH_FILE"
+    echo "[INFO] Dépendances à jour."
 fi
 
 # Éviter le prompt d'onboarding Streamlit (bloquant en exécution non-interactive)

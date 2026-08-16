@@ -167,7 +167,7 @@ media/images/
 # Résultats & logs
 output/
 logs/
-runs
+runs/
 
 # Données
 dada1/
