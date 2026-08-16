@@ -1,5 +1,14 @@
+# Interface Streamlit
 streamlit>=1.30
 streamlit-autorefresh>=1.0
+
+# Données & visualisation
 pandas>=2.1
 plotly>=5.18
+matplotlib>=3.8
+
+# Fichiers Office
 openpyxl>=3.1
+
+# Génération PDF
+reportlab>=4.0
