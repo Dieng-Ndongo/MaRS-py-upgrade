@@ -29,7 +29,8 @@ st.set_page_config(
     page_icon="🧬"
 )
 
-HISTORY_FILE = Path.home() / "pipeline" / "runs_history.json"
+REPO_DIR     = Path.home() / "MaRS-py-upgrade"
+HISTORY_FILE = REPO_DIR / "runs_history.json"
 HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # ════════════════════════════════════════════════
@@ -203,7 +204,7 @@ def notify_pipeline_done(run_id, n_samples, duration_sec, success):
         )
     }
     st.session_state["notif_banner"] = banner
-    notif_file = Path.home() / "pipeline" / "pending_notif.json"
+    notif_file = REPO_DIR / "pending_notif.json"
     notif_file.write_text(json.dumps(banner, ensure_ascii=False))
 
 
@@ -270,7 +271,7 @@ def get_qc_data_for_run(run_id):
 # HELPERS — CHEMINS & VALIDATION
 # ════════════════════════════════════════════════
 def get_run_paths(run_id):
-    base_dir = Path.home() / "pipeline" / "runs" / f"run_{run_id}"
+    base_dir = REPO_DIR / "runs" / f"run_{run_id}"
     return {
         "base":   base_dir,
         "input":  base_dir / "data",
@@ -544,7 +545,7 @@ for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v() if callable(v) else v
 
-_notif_file = Path.home() / "pipeline" / "pending_notif.json"
+_notif_file = REPO_DIR / "pending_notif.json"
 if not st.session_state.get("notif_banner") and _notif_file.exists():
     try:
         st.session_state["notif_banner"] = json.loads(_notif_file.read_text())
@@ -1045,7 +1046,7 @@ if st.session_state.get("notif_banner"):
     with col2:
         if st.button("✕", key="close_notif"):
             del st.session_state["notif_banner"]
-            _nf = Path.home() / "pipeline" / "pending_notif.json"
+            _nf = REPO_DIR / "pending_notif.json"
             if _nf.exists():
                 _nf.unlink()
             st.rerun()
@@ -1170,7 +1171,7 @@ elif active_page == "settings":
         st.session_state["notif_failure_only"] = st.toggle("Alerter seulement en cas d'échec", value=st.session_state.get("notif_failure_only", False))
     with st.expander("🗂️ Maintenance"):
         history  = load_history()
-        runs_dir = Path.home() / "pipeline" / "runs"
+        runs_dir = REPO_DIR / "runs"
         disk_usage = "—"
         if runs_dir.exists():
             try:
@@ -2298,10 +2299,10 @@ elif active_page == "pipeline":
                         "docker", "run", "--rm",
                         "--label", f"mars_run_id={run_id}", 
                         "-v", f"{paths['base']}:/pipeline",
-                        "-v", f"{Path.home()}/pipeline/pf_3D7_Ref:/ref:ro",
-                        "-v", f"{Path.home()}/pipeline/pf_3D7_snpEff_db:/snpeff_db:ro",
-                        "-v", f"{Path.home()}/pipeline:/app",
-                        "-v", f"{Path.home()}/pipeline/pipeline_python.py:/app/pipeline_python.py",
+                        "-v", f"{REPO_DIR}/pf_3D7_Ref:/ref:ro",
+                        "-v", f"{REPO_DIR}/pf_3D7_snpEff_db:/snpeff_db:ro",
+                        "-v", f"{REPO_DIR}:/app",
+                        "-v", f"{REPO_DIR}/pipeline_python.py:/app/pipeline_python.py",
                         "bioinfo_pipeline"
                     ],
                     stdout=lf, stderr=lf
