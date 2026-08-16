@@ -358,8 +358,10 @@ def get_pair_prefix(filename: str) -> str:
     return name
 
 def reset_state():
+    preserve = {"authenticated", "notif_enabled", "notif_failure_only"}
     for k, v in DEFAULTS.items():
-        st.session_state[k] = v() if callable(v) else v
+        if k not in preserve:
+            st.session_state[k] = v() if callable(v) else v
 
 
 # ════════════════════════════════════════════════
