@@ -365,7 +365,7 @@ def reset_state():
 
 
 # ════════════════════════════════════════════════
-# EXCEL TEMPLATE GENERATOR
+## EXCEL TEMPLATE GENERATOR
 # ════════════════════════════════════════════════
 def generate_template(pairs=None):
     """
