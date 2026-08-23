@@ -7,3 +7,5 @@ data/
 logs/
 .git
 __pycache__/
+venv/
+runs/

@@ -64,7 +64,7 @@ MaRS-py-upgrade/
 ├── 📂 bin/        
 │      └── ...                  # Scripts secondaires
 |
-├── 📂 pf_3D7/
+├── 📂 pf_3D7_Ref/
 │   └── ...                     # Génome de référence de Plasmodium falciparum
 │
 ├── 📂 pf_3D7_snpEff_db/
@@ -95,7 +95,8 @@ MaRS-py-upgrade/
 ├── 📄 .gitignore               # Fichiers exclus du dépôt Git
 └── 📖 README.md                # Documentation du projet
 
-```markdown
+```
+
 ## 📌 Description des principaux composants
 
 | Élément | Description |
@@ -103,7 +104,7 @@ MaRS-py-upgrade/
 | `pipeline_python.py` | Implémentation principale du pipeline bioinformatique en Python. |
 | `app.py` | Interface graphique permettant de lancer et suivre les analyses avec Streamlit. |
 | `bin/` | Regroupe les scripts secondaires utilisés par le pipeline et l'interface. |
-| `pf_3D7/` | Contient le génome de référence de *Plasmodium falciparum* 3D7. |
+| `pf_3D7_Ref/` | Contient le génome de référence de *Plasmodium falciparum* 3D7. |
 | `pf_3D7_snpEff_db/` | Contient les fichiers nécessaires à l'annotation des variants avec SnpEff. |
 | `runs/` | Regroupe les résultats générés pour chaque analyse. |
 | `environment.yml` | Définit l'environnement Conda et les dépendances du pipeline. |
@@ -112,7 +113,6 @@ MaRS-py-upgrade/
 | `start.sh` | Automatise le lancement du pipeline et/ou de l'interface. |
 | `.gitignore` | Définit les fichiers et répertoires qui ne doivent pas être suivis par Git. |
 
-```
 ---
 
 ## Prérequis
@@ -220,7 +220,7 @@ sudo systemctl enable --now mars-streamlit
 sudo systemctl status mars-streamlit
 
 ```
-Le premier démarrage crée le venv Python 3.12 et installe `requirements.txt` (voir `start.sh`) ; les démarrages suivants sont quasi instantanés.
+Le premier démarrage crée le venv Python 3.12, installe `requirements.txt` et construit l'image Docker `bioinfo_pipeline` (voir `start.sh`) — cette dernière étape peut prendre plusieurs minutes (résolution Conda d'une vingtaine d'outils bio-informatiques), ce qui est normal. Les démarrages suivants sont quasi instantanés, sauf si `Dockerfile`/`environment.yml` ont changé (reconstruction automatique de l'image).
 
 ### 3. Exposer l'app via Cloudflare Tunnel
 L'app écoute uniquement en local (`127.0.0.1:8501`, voir `.streamlit/config.toml`) — aucun port public n'est ouvert. Ajoutez une règle d'ingress dans la config `cloudflared` existante du serveur (`/etc/cloudflared/config.yml`) :

@@ -29,7 +29,7 @@ st.set_page_config(
     page_icon="🧬"
 )
 
-REPO_DIR     = Path.home() / "MaRS-py-upgrade"
+REPO_DIR     = Path(__file__).resolve().parent
 HISTORY_FILE = REPO_DIR / "runs_history.json"
 HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
