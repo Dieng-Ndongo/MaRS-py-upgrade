@@ -33,6 +33,17 @@ if [ "$CURRENT_HASH" != "$SAVED_HASH" ]; then
     echo "[INFO] Dépendances à jour."
 fi
 
+# Personnaliser le titre/aperçu de lien de Streamlit (WhatsApp, etc. ne chargent
+# pas le JS, donc st.set_page_config seul ne suffit pas — il faut patcher le
+# HTML statique servi par Streamlit, qui est réécrit à chaque réinstallation)
+INDEX_HTML=$(compgen -G "$VENV_DIR/lib/python3.*/site-packages/streamlit/static/index.html" | head -n1)
+if [ -n "$INDEX_HTML" ] && ! grep -q "CIGASS MaRS" "$INDEX_HTML"; then
+    sed -i \
+        -e 's#<title>Streamlit</title>#<title>CIGASS MaRS · Pipeline</title>#' \
+        -e 's#</title>#</title>\n    <meta property="og:title" content="CIGASS MaRS · Pipeline">#' \
+        "$INDEX_HTML"
+fi
+
 # Construire l'image Docker du pipeline si absente ou si les sources ont changé
 DOCKER_HASH_FILE="$VENV_DIR/.docker_hash"
 DOCKER_HASH=$(cat "$SCRIPT_DIR/Dockerfile" "$SCRIPT_DIR/environment.yml" | md5sum | cut -d' ' -f1)
