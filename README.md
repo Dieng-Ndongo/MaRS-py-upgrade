@@ -170,7 +170,7 @@ newgrp docker
 
 git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade
 
-cd MaRS-py-upgrade
+cd ~MaRS-py-upgrade
 
 ```
 ### 4. Construction de l'image docker
@@ -180,7 +180,16 @@ cd MaRS-py-upgrade
 docker build -t bioinfo_pipeline .
 
 ```
-### 5. Exécution du pipeline
+### 5. Installer requirements.txt
+
+```bash
+
+cd ~/MaRS-py-upgrade
+pip install -r requirements.txt
+
+```
+
+### 6. Exécution du pipeline
 
 ```bash
 
