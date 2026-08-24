@@ -217,6 +217,9 @@ sudo systemctl daemon-reload
 
 sudo systemctl enable --now mars-streamlit
 
+cd /opt/mars-py-upgrade
+sudo docker build -t bioinfo_pipeline .
+
 sudo systemctl status mars-streamlit
 
 journalctl -u mars-streamlit -f
