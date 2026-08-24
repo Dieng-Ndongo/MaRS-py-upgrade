@@ -2,51 +2,47 @@ name: pipeline_env
 channels:
   - bioconda
   - conda-forge
-  - anaconda
-  - conda
-  - gstr
-  - defaults
 dependencies:
 # Python
-  - python=3.10
-  - plotly 
-  - pip
+  - python=3.10.21
+  - plotly=6.9.0
+  - pip=26.2.1
   - pip:
-    - streamlit
-    - streamlit-autorefresh 
+    - streamlit==1.62.0
+    - streamlit-autorefresh==1.0.1
 # Bioinformatique / outils NGS
-  - fastqc
-  - multiqc
-  - bwa
-  - samtools
-  - bcftools
-  - bedtools
-  - gatk4
-  - trimmomatic
-  - cutadapt
-  - sickle
-  - seqtk
-  - bbmap # pour bbduck
-  - freebayes
-  - vardict
-  - vardict-java
-  - perl
-  - snpeff 
-  - snpsift
-  - picard
+  - fastqc=0.12.1
+  - multiqc=1.35
+  - bwa=0.7.19
+  - samtools=1.24
+  - bcftools=1.24
+  - bedtools=2.31.1
+  - gatk4=4.6.2.0
+  - trimmomatic=0.40
+  - cutadapt=5.2
+  - sickle=0.7.0
+  - seqtk=1.5
+  - bbmap=40.02 # pour bbduck
+  - freebayes=1.0.2
+  - vardict=2019.06.04
+  - vardict-java=1.5.8
+  - perl=5.26.2
+  - snpeff=5.4.0c
+  - snpsift=5.4.0c
+  - picard=2.20.4
 # Java pour snpEff
-  - openjdk=21
+  - openjdk=21.0.10
 # Librairies Python utiles
-  - pandas 
-  - numpy 
-  - pyfaidx 
-  - xlrd
-  - tqdm
-  - matplotlib
-  - seaborn
-  - pysam
-  - biopython
-  - reportlab
+  - pandas=2.3.3
+  - numpy=2.2.6
+  - pyfaidx=0.9.0.4
+  - xlrd=2.0.2
+  - tqdm=4.70.0
+  - matplotlib=3.10.9
+  - seaborn=0.13.2
+  - pysam=0.24.0
+  - biopython=1.88
+  - reportlab=5.0.1
 # Variables d'environnement pour Java
 variables:
-   JAVA_HOME: $CONDA_PREFIX
+  JAVA_HOME: $CONDA_PREFIX
