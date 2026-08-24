@@ -14,7 +14,7 @@ COPY pf_3D7_snpEff_db /pipeline/pf_3D7_snpEff_db
 COPY bin /pipeline/bin
 COPY environment.yml /tmp/environment.yml
 
-RUN micromamba create -y -n pipeline_env -f /tmp/environment.yml && \
+RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/environment.yml && \ 
     micromamba clean --all --yes
 
 
