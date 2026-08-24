@@ -219,6 +219,10 @@ sudo systemctl enable --now mars-streamlit
 
 sudo systemctl status mars-streamlit
 
+journalctl -u mars-streamlit -f
+
+df -h /
+
 ```
 Le premier démarrage crée le venv Python 3.12, installe `requirements.txt` et construit l'image Docker `bioinfo_pipeline` (voir `start.sh`) — cette dernière étape peut prendre plusieurs minutes (résolution Conda d'une vingtaine d'outils bio-informatiques), ce qui est normal. Les démarrages suivants sont quasi instantanés, sauf si `Dockerfile`/`environment.yml` ont changé (reconstruction automatique de l'image).
 
