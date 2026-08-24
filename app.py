@@ -24,7 +24,7 @@ from results_page import render_results_page
 # CONFIGURATION PAGE
 # ════════════════════════════════════════════════
 st.set_page_config(
-    page_title="MaRS-py-upgrade · Pipeline FASTQ",
+    page_title="CIGASS MaRS · Pipeline",
     layout="wide",
     page_icon="🧬"
 )
