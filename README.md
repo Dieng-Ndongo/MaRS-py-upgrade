@@ -212,14 +212,16 @@ Copiez `.streamlit/secrets.toml.example` vers `.streamlit/secrets.toml` dans `/o
 ```bash
 
 sudo cp /opt/mars-py-upgrade/deploy/mars-streamlit.service /etc/systemd/system/
+sudo cp /opt/mars-py-upgrade/deploy/mars-streamlit.timer /etc/systemd/system/
 
 sudo systemctl daemon-reload
 
-sudo systemctl enable --now mars-streamlit
+sudo systemctl enable --now mars-streamlit.timer
 
 cd /opt/mars-py-upgrade
 sudo docker build -t bioinfo_pipeline .
 
+sudo systemctl start mars-streamlit
 sudo systemctl status mars-streamlit
 
 journalctl -u mars-streamlit -f
@@ -227,6 +229,8 @@ journalctl -u mars-streamlit -f
 df -h /
 
 ```
+Le démarrage automatique après un redémarrage du serveur est volontairement retardé de 15 minutes (`mars-streamlit.timer`, `OnBootSec=15min`) pour laisser le reste du serveur (réseau, Docker, autres services) se stabiliser avant de lancer l'app — ce délai ne s'applique qu'au déclenchement après un boot. Pour un démarrage immédiat (première installation, ou reprise manuelle après un arrêt), utilisez `sudo systemctl start mars-streamlit` directement ; la reprise sur échec (`Restart=on-failure`) reste également instantanée (5s), ce délai ne concerne que le boot.
+
 Le premier démarrage crée le venv Python 3.12, installe `requirements.txt` et construit l'image Docker `bioinfo_pipeline` (voir `start.sh`) — cette dernière étape peut prendre plusieurs minutes (résolution Conda d'une vingtaine d'outils bio-informatiques), ce qui est normal. Les démarrages suivants sont quasi instantanés, sauf si `Dockerfile`/`environment.yml` ont changé (reconstruction automatique de l'image).
 
 ### 3. Exposer l'app via Cloudflare Tunnel

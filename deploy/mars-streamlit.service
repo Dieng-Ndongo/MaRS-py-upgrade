@@ -11,6 +11,3 @@ WorkingDirectory=/opt/mars-py-upgrade
 ExecStart=/opt/mars-py-upgrade/start.sh
 Restart=on-failure
 RestartSec=5
-
-[Install]
-WantedBy=multi-user.target

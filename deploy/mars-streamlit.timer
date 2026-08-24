@@ -1,0 +1,9 @@
+[Unit]
+Description=Delay MaRS-py-upgrade Streamlit startup by 15 minutes after boot
+
+[Timer]
+OnBootSec=15min
+Unit=mars-streamlit.service
+
+[Install]
+WantedBy=multi-user.target
