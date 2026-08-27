@@ -170,7 +170,7 @@ newgrp docker
 
 git clone https://github.com/Dieng-Ndongo/MaRS-py-upgrade
 
-cd MaRS-py-upgrade
+cd ~MaRS-py-upgrade
 
 ```
 ### 4. Construction de l'image docker
@@ -180,7 +180,16 @@ cd MaRS-py-upgrade
 docker build -t bioinfo_pipeline .
 
 ```
-### 5. Exécution du pipeline
+### 5. Installer requirements.txt
+
+```bash
+
+cd ~/MaRS-py-upgrade
+pip install -r requirements.txt
+
+```
+
+### 6. Exécution du pipeline
 
 ```bash
 
@@ -250,5 +259,12 @@ Puis routez le DNS et relancez le tunnel :
 cloudflared tunnel route dns <nom-du-tunnel> mars.votredomaine.tld
 
 sudo systemctl restart cloudflared
+
+# Boot Timer after Server Stop
+sudo cp deploy/mars-streamlit.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl disable mars-streamlit    # remove any old direct boot-enable
+sudo systemctl enable --now mars-streamlit.timer
+sudo systemctl start mars-streamlit      # start it now, since you don't want to wait 15 min today
 
 ```
