@@ -362,7 +362,7 @@ def render_progress_tracker(get_run_paths_fn, save_history_fn, notify_fn):
     with col_stop:
         if st.button("Arrêter", use_container_width=True):
             id_res = subprocess.run(
-                ["docker", "ps", "--filter", "ancestor=bioinfo_pipeline", "--format", "{{.ID}}"],
+                ["docker", "ps", "--filter", f"label=mars_run_id={run_id}", "--format", "{{.ID}}"],
                 capture_output=True, text=True,
             )
             cid = id_res.stdout.strip()
@@ -423,7 +423,7 @@ def render_progress_tracker(get_run_paths_fn, save_history_fn, notify_fn):
     # ── Détection de fin ──────────────────────
     if elapsed > 10:
         result = subprocess.run(
-            ["docker", "ps", "--filter", "ancestor=bioinfo_pipeline", "--format", "{{.ID}}"],
+            ["docker", "ps", "--filter", f"label=mars_run_id={run_id}", "--format", "{{.ID}}"],
             capture_output=True, text=True,
         )
         docker_running = result.stdout.strip() != ""

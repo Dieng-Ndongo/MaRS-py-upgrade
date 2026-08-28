@@ -228,7 +228,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now mars-streamlit.timer
 
 cd /opt/mars-py-upgrade
-sudo docker build -t bioinfo_pipeline .
+sudo docker build --build-arg PUID=$(id -u mars) --build-arg PGID=$(id -g mars) -t bioinfo_pipeline .
 
 sudo systemctl start mars-streamlit
 sudo systemctl status mars-streamlit
@@ -259,5 +259,12 @@ Puis routez le DNS et relancez le tunnel :
 cloudflared tunnel route dns <nom-du-tunnel> mars.votredomaine.tld
 
 sudo systemctl restart cloudflared
+
+# Boot Timer after Server Stop
+sudo cp deploy/mars-streamlit.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl disable mars-streamlit    # remove any old direct boot-enable
+sudo systemctl enable --now mars-streamlit.timer
+sudo systemctl start mars-streamlit      # start it now, since you don't want to wait 15 min today
 
 ```

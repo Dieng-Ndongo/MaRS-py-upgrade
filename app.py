@@ -2295,25 +2295,34 @@ elif active_page == "pipeline":
                             f.write(chunk)
 
             log_file = paths["logs"] / "pipeline.log"
+            docker_launch_error = None
             with open(log_file, "w") as lf:
-                subprocess.Popen(
-                    [
-                        "docker", "run", "--rm",
-                        "--label", f"mars_run_id={run_id}", 
-                        "-v", f"{paths['base']}:/pipeline",
-                        "-v", f"{REPO_DIR}/pf_3D7_Ref:/ref:ro",
-                        "-v", f"{REPO_DIR}/pf_3D7_snpEff_db:/snpeff_db:ro",
-                        "-v", f"{REPO_DIR}:/app",
-                        "-v", f"{REPO_DIR}/pipeline_python.py:/app/pipeline_python.py",
-                        "bioinfo_pipeline"
-                    ],
-                    stdout=lf, stderr=lf
-                )
+                try:
+                    subprocess.Popen(
+                        [
+                            "docker", "run", "--rm",
+                            "--label", f"mars_run_id={run_id}",
+                            "-v", f"{paths['base']}:/pipeline",
+                            "-v", f"{REPO_DIR}/pf_3D7_Ref:/ref:ro",
+                            "-v", f"{REPO_DIR}/pf_3D7_snpEff_db:/snpeff_db:ro",
+                            "-v", f"{REPO_DIR}:/app",
+                            "-v", f"{REPO_DIR}/pipeline_python.py:/app/pipeline_python.py",
+                            "bioinfo_pipeline"
+                        ],
+                        stdout=lf, stderr=lf
+                    )
+                except OSError as e:
+                    docker_launch_error = str(e)
+                    lf.write(f"[ERROR] Impossible de lancer docker : {e}\n")
 
             st.session_state["log_file"]          = str(log_file)
             st.session_state["launch_time"]       = datetime.now().timestamp()
             st.session_state["names_for_history"] = names
-            save_run_to_history(run_id, names, "running", None, None)
+            if docker_launch_error:
+                st.session_state["running"] = False
+                st.error(f"❌ Impossible de démarrer l'analyse : {docker_launch_error}")
+            else:
+                save_run_to_history(run_id, names, "running", None, None)
             st.rerun()
 
     # ════════════════════════════════════════════
@@ -2335,6 +2344,13 @@ elif active_page == "pipeline":
             and st.session_state["run_id"] is not None):
         st.markdown("---")
         st.error("🛑 L'analyse a été arrêtée ou a échoué.")
+        log_file = Path(st.session_state.get("log_file", ""))
+        if log_file.exists():
+            with open(log_file, "r", errors="replace") as f:
+                fail_logs = f.read()
+            if fail_logs.strip():
+                with st.expander("Logs pipeline (50 dernières lignes)", expanded=True):
+                    st.code("\n".join(fail_logs.splitlines()[-50:]), language="bash")
         col_retry, col_home = st.columns(2)
         with col_retry:
             if st.button("🔄 Relancer l'analyse", width='stretch'):
