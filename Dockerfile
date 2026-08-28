@@ -14,8 +14,14 @@ COPY pf_3D7_snpEff_db /pipeline/pf_3D7_snpEff_db
 COPY bin /pipeline/bin
 COPY environment.yml /tmp/environment.yml
 
-RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/environment.yml && \ 
+RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/environment.yml && \
     micromamba clean --all --yes
+
+# var2vcf_valid.pl ships with the vardict bioconda package but isn't symlinked into
+# bin/ by that recipe (unlike vardict/vardict.pl/vardict2mut.pl) — link it manually.
+RUN chmod +x /opt/conda/envs/pipeline_env/share/vardict-2019.06.04-0/var2vcf_valid.pl && \
+    ln -sf /opt/conda/envs/pipeline_env/share/vardict-2019.06.04-0/var2vcf_valid.pl \
+        /opt/conda/envs/pipeline_env/bin/var2vcf_valid.pl
 
 
 # IMPORTANT: dossier de travail writable
