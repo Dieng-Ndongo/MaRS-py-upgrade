@@ -45,8 +45,3 @@ dependencies:
   - pysam=0.24.0
   - biopython=1.88
   - reportlab=5.0.1
-
-  # Streamlit
-  - pip:
-      - streamlit==1.62.0
-      - streamlit-autorefresh==1.0.1
