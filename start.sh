@@ -27,11 +27,17 @@ IMAGE_NAME="bioinfo_pipeline"
 # Safety: this script MUST run as mars
 # ============================================================
 
-if [ "$(id -un)" != "mars" ]; then
+if [ "$(id -un)" != "mars" ] && [ "${ALLOW_ANY_USER:-0}" != "1" ]; then
     echo "[ERREUR] start.sh doit être exécuté avec l'utilisateur 'mars'." >&2
     echo "[INFO] Utilisez :" >&2
     echo "  sudo -u mars $SCRIPT_DIR/start.sh" >&2
+    echo "[INFO] Pour un test local (hors production) :" >&2
+    echo "  ALLOW_ANY_USER=1 $SCRIPT_DIR/start.sh" >&2
     exit 1
+fi
+
+if [ "$(id -un)" != "mars" ]; then
+    echo "[AVERTISSEMENT] Exécution en tant que '$(id -un)' (ALLOW_ANY_USER=1, mode test local)." >&2
 fi
 
 # ============================================================
@@ -66,7 +72,7 @@ mkdir -p "$STATE_DIR"
 mkdir -p "$STREAMLIT_DIR"
 
 # Make sure mars owns runtime directories
-chown mars:mars "$STATE_DIR" "$STREAMLIT_DIR" 2>/dev/null || true
+chown "$(id -u):$(id -g)" "$STATE_DIR" "$STREAMLIT_DIR" 2>/dev/null || true
 
 # ============================================================
 # Python / Streamlit virtual environment
