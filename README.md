@@ -228,7 +228,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now mars-streamlit.timer
 
 cd /opt/mars-py-upgrade
-sudo docker build -t bioinfo_pipeline .
+sudo docker build --build-arg PUID=$(id -u mars) --build-arg PGID=$(id -g mars) -t bioinfo_pipeline .
 
 sudo systemctl start mars-streamlit
 sudo systemctl status mars-streamlit

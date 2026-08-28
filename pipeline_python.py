@@ -103,6 +103,7 @@ def QC_pre_trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" 
                 error_msg = f"[ERROR] FastQC a échoué pour {fq_name} : {e}\n"
                 lf.write(error_msg)
                 print(error_msg.strip())
+                raise
 
         end_time = datetime.now()
         duration = end_time - start_time
@@ -152,7 +153,7 @@ def MultiQC_pre_trimming(output_dir=BASE_DIR / "output" / "QC_pre_trimming", rep
             except subprocess.CalledProcessError as e:
                 lf.write(f"\n[ERROR] Échec de MultiQC : {e}\n")
                 print("[ERROR] MultiQC_pre_trimming a échoué (voir log).")
-                break
+                raise
 
         end_time = datetime.now()
         duration = end_time - start_time
@@ -239,6 +240,7 @@ def trimming(input_dir=BASE_DIR / "data", output_dir=BASE_DIR / "output" / "trim
                 trimmed_files.extend([out_r1, out_r2])
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] Échec du trimming pour {sample_id} : {e}\n")
+                raise
 
         total_time = time.time() - start_time
         lf.write(f"\n===== Fin du processus =====\n")
@@ -299,6 +301,7 @@ def QC_post_trimming(input_dir=BASE_DIR / "output" / "trimmed_reads", output_dir
                 lf.write(f"[OK] QC_post_trimming terminé pour {file_name}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] QC_post_trimming a échoué pour {file_name} : {e}\n")
+                raise
 
         total_time = time.time() - start_time
         lf.write(f"\n===== Fin du processus =====\n")
@@ -348,6 +351,7 @@ def MultiQC_post_trimming(output_dir=BASE_DIR / "output" / "QC_post_trimming", r
         except subprocess.CalledProcessError as e:
             lf.write(f"[ERROR] MultiQC a échoué : {e}\n")
             print(f"[ERROR] MultiQC a échoué : {e}")
+            raise
 
         total_time = time.time() - start_time
         lf.write(f"\n===== Fin du processus =====\n")
@@ -486,6 +490,7 @@ def bwa_align(input_dir=BASE_DIR / "output" / "trimmed_reads", sam_dir=BASE_DIR 
                 lf.write(f"[OK] SAM généré : {sam_file}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] SAM échoué pour {sample_name} : {e}\n")
+                raise
         print(f"[INFO] SAM généré : {sam_file}")
 
         # Étape 2 : BAM trié
@@ -498,6 +503,7 @@ def bwa_align(input_dir=BASE_DIR / "output" / "trimmed_reads", sam_dir=BASE_DIR 
                 lf.write(f"[OK] BAM trié généré : {bam_file}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] BAM trié échoué pour {sample_name} : {e}\n")
+                raise
         print(f"[INFO] BAM trié généré : {bam_file}")
 
         # Étape 3 : BAM index
@@ -511,6 +517,7 @@ def bwa_align(input_dir=BASE_DIR / "output" / "trimmed_reads", sam_dir=BASE_DIR 
                 lf.write(f"[OK] BAM index généré : {bai_file}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] BAM index échoué pour {sample_name} : {e}\n")
+                raise
         print(f"[INFO] BAM index généré : {bai_file}")
 
     total_time = time.time() - start_time
@@ -577,6 +584,7 @@ def picard_add_readgroups(input_dir=BASE_DIR / "output" / "sam_files", output_di
                 lf.write(f"[OK] BAM avec read groups généré : {bam_out}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] Picard a échoué pour {sam_file.name} : {e}\n")
+                raise
 
         print(f"[INFO] BAM avec read groups généré : {bam_out}")
 
@@ -707,7 +715,7 @@ def vcf_call_all_samples(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups", 
                 lf.write(f"[OK] Variants générés pour {sample_id}\n")
             except subprocess.CalledProcessError as e:
                 lf.write(f"[ERROR] Appel de variants échoué pour {sample_id} : {e}\n")
-                continue
+                raise
 
             lf.write(f"[INFO] Fichiers VCF générés pour {sample_id} :\n"
                      f"  SAMTOOLS : {samtools_vcf}\n"
@@ -867,6 +875,7 @@ def annotate_all_vcfs(
             except subprocess.CalledProcessError as e:
                 print(f"[ERROR] {sample_id}")
                 lf.write(f"[ERROR] {e}\n")
+                raise
 
     print(f"[PIPELINE] Terminé en {time.time() - start_time:.2f}s")
 
@@ -963,6 +972,7 @@ def run_vartype_all(input_dir, output_dir, logs_dir=None):
                     global_log.write(f"[OK] {output_vcf} généré avec succès.\n\n")
                 except subprocess.CalledProcessError as e:
                     global_log.write(f"[ERROR] Échec sur {sample_id} - {caller_name}\n{e.output}\n\n")
+                    raise
 
             results[sample_id] = generated_files
 
@@ -1046,7 +1056,7 @@ def get_coverage(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups", output_d
             except subprocess.CalledProcessError as e:
                 print(f"[ERROR] Échec de get_coverage pour {sample_id}")
                 lf.write(f"[ERROR] Échec de get_coverage pour {sample_id} : {e}\n")
-                continue
+                raise
 
     elapsed_time = time.time() - start_time
     print(f"[PIPELINE] Étape get_coverage terminée en {elapsed_time:.2f} secondes.")
@@ -1132,6 +1142,7 @@ def run_wt_cov(ref, gff, voi, depth_dir=BASE_DIR / "output" / "samtools_coverage
             except subprocess.CalledProcessError as e:
                 log.write(f"[ERROR] WT_cov échoué pour {sample_id} : {e}\n")
                 print(f"[ERROR] WT_cov échoué pour {sample_id} : {e}")
+                raise
 
         log.write("\n[PIPELINE] WT_cov terminé le {}\n".format(time.ctime()))
 
@@ -1353,7 +1364,7 @@ def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR
                     subprocess.run(cmd, cwd=sample_output, stdout=log, stderr=log, text=True, check=True)
                 except subprocess.CalledProcessError as e:
                     log.write(f"[ERREUR] {sample_id} - {tool} a échoué : {e}\n")
-                    continue
+                    raise
 
             elapsed = time.time() - start_sample
             log.write(f"[SUCCESS] {sample_id} terminé en {elapsed:.2f} sec\n")
@@ -1701,7 +1712,7 @@ def run_snpfilter(voi_path=Path("/ref/voinew3.csv"), merge_dir=BASE_DIR / "outpu
 
             except subprocess.CalledProcessError as e:
                 log.write(f"[ERROR] {sample_id} a échoué (code {e.returncode}). Voir détails ci-dessus.\n")
-                continue
+                raise
 
         total_elapsed = time.time() - global_start
         log.write(f"\n===== Étape Snpfilter terminée en {total_elapsed:.2f} sec =====\n")
@@ -1905,6 +1916,7 @@ def run_summary(merged_final_snp=BASE_DIR / "output" / "Summary_merge" / "merged
             log.write(f"\n[ERREUR] L'exécution de summary.py a échoué : {e}\n")
             log.write(f"STDOUT:\n{e.stdout}\nSTDERR:\n{e.stderr}\n")
             print(" Erreur lors de l'exécution de summary.py. Voir le fichier log pour les détails.")
+            raise
             
             
 

@@ -22,8 +22,11 @@ RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/envir
 RUN mkdir -p /data /data/output /data/logs /data/data && \
     chmod -R 777 /data
 
-# utilisateur non-root
-RUN useradd -m -u 1000 pipelineuser
+# utilisateur non-root — UID/GID paramétrables pour matcher le compte hôte
+# qui possède les répertoires bind-montés (ex: build --build-arg PUID=$(id -u mars) PGID=$(id -g mars))
+ARG PUID=1000
+ARG PGID=1000
+RUN groupadd -g ${PGID} pipelineuser && useradd -m -u ${PUID} -g ${PGID} pipelineuser
 
 USER pipelineuser
 
