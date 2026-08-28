@@ -44,14 +44,17 @@ if [ -n "$INDEX_HTML" ] && ! grep -q "CIGASS MaRS" "$INDEX_HTML"; then
         "$INDEX_HTML"
 fi
 
-# Construire l'image Docker du pipeline si absente ou si les sources ont changé
+# Construire l'image Docker du pipeline si absente ou si les sources ont changé.
+# L'utilisateur non-root du conteneur (pipelineuser) est buildé avec le même
+# UID/GID que ce script — il tourne comme le compte de service (ex: mars) —
+# pour pouvoir écrire dans les répertoires runs/ bind-montés côté hôte.
 DOCKER_HASH_FILE="$VENV_DIR/.docker_hash"
-DOCKER_HASH=$(cat "$SCRIPT_DIR/Dockerfile" "$SCRIPT_DIR/environment.yml" | md5sum | cut -d' ' -f1)
+DOCKER_HASH=$(cat "$SCRIPT_DIR/Dockerfile" "$SCRIPT_DIR/environment.yml" | md5sum | cut -d' ' -f1)-$(id -u)-$(id -g)
 SAVED_DOCKER_HASH=$(cat "$DOCKER_HASH_FILE" 2>/dev/null || echo "")
 
 if ! docker image inspect bioinfo_pipeline >/dev/null 2>&1 || [ "$DOCKER_HASH" != "$SAVED_DOCKER_HASH" ]; then
     echo "[INFO] Construction de l'image Docker bioinfo_pipeline..."
-    docker build -t bioinfo_pipeline "$SCRIPT_DIR"
+    docker build --build-arg PUID="$(id -u)" --build-arg PGID="$(id -g)" -t bioinfo_pipeline "$SCRIPT_DIR"
     echo "$DOCKER_HASH" > "$DOCKER_HASH_FILE"
 fi
 
