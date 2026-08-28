@@ -527,7 +527,6 @@ DEFAULTS = {
     "pipeline_done":      False,
     "zip_created":        False,
     "show_download":      False,
-    "docker_started":     False,
     "launch_time":        0,
     "log_file":           "",
     "trigger_run":        False,
@@ -2257,7 +2256,8 @@ elif active_page == "pipeline":
         st.markdown("<br>", unsafe_allow_html=True)
         col_launch, col_reset = st.columns([3, 1])
         with col_launch:
-            if st.button("▶  Lancer l'analyse bioinformatique", width='stretch'):
+            if st.button("▶  Lancer l'analyse bioinformatique", width='stretch',
+                         disabled=st.session_state.get("running", False)):
                 st.session_state["trigger_run"] = True
         with col_reset:
             if st.button("🔄 Tout recommencer", width='stretch'):
@@ -2266,12 +2266,11 @@ elif active_page == "pipeline":
 
         if st.session_state.get("trigger_run", False):
             st.session_state["trigger_run"]    = False
-            st.session_state["run_id"]         = datetime.now().strftime("%Y%m%d_%H%M%S")
+            st.session_state["run_id"]         = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             st.session_state["running"]        = True
             st.session_state["pipeline_done"]  = False
             st.session_state["zip_created"]    = False
             st.session_state["show_download"]  = False
-            st.session_state["docker_started"] = False
 
             run_id = st.session_state["run_id"]
             paths  = get_run_paths(run_id)
