@@ -14,13 +14,17 @@ COPY pf_3D7_snpEff_db /pipeline/pf_3D7_snpEff_db
 COPY bin /pipeline/bin
 COPY environment.yml /tmp/environment.yml
 
-RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/environment.yml && \ 
+RUN micromamba create -y -n pipeline_env --strict-channel-priority -f /tmp/environment.yml && \
     micromamba clean --all --yes
 
+# var2vcf_valid.pl ships with the vardict bioconda package but isn't symlinked into
+# bin/ by that recipe (unlike vardict/vardict.pl/vardict2mut.pl) — link it manually.
+# Resolved by glob rather than a hardcoded build number, since conda/mamba can pick a
+# different bioconda build string (e.g. vardict-2019.06.04-1) on a fresh solve.
+RUN VARDICT_SHARE=$(find /opt/conda/envs/pipeline_env/share -maxdepth 1 -iname 'vardict-*' -type d | head -n1) && \
+    chmod +x "$VARDICT_SHARE/var2vcf_valid.pl" && \
+    ln -sf "$VARDICT_SHARE/var2vcf_valid.pl" /opt/conda/envs/pipeline_env/bin/var2vcf_valid.pl
 
-# IMPORTANT: dossier de travail writable
-RUN mkdir -p /data /data/output /data/logs /data/data && \
-    chmod -R 777 /data
 
 # utilisateur non-root — UID/GID paramétrables pour matcher le compte hôte
 # qui possède les répertoires bind-montés (ex: build --build-arg PUID=$(id -u mars) PGID=$(id -g mars))

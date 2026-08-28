@@ -707,8 +707,8 @@ def vcf_call_all_samples(bam_dir=BASE_DIR / "output" / "bam_picard_readgroups", 
                                 stdout=lf, stderr=lf, text=True, check=True)
 
                 # VarDict
-                vardict_cmd = f"vardict -G {ref} -f 0.05 -N {sample_id} -b {bam} -c 1 -S 2 -E 3 -g 4 {bed_file} | var2vcf_valid.pl -N {sample_id} -E -f 0.05 > {vardict_vcf}"
-                subprocess.run(vardict_cmd, shell=True, stdout=lf, stderr=lf, text=True, check=True)
+                vardict_cmd = f"set -o pipefail; vardict -G {ref} -f 0.05 -N {sample_id} -b {bam} -c 1 -S 2 -E 3 -g 4 {bed_file} | var2vcf_valid.pl -N {sample_id} -E -f 0.05 > {vardict_vcf}"
+                subprocess.run(vardict_cmd, shell=True, executable="/bin/bash", stdout=lf, stderr=lf, text=True, check=True)
 
             
             
