@@ -24,10 +24,6 @@ RUN chmod +x /opt/conda/envs/pipeline_env/share/vardict-2019.06.04-0/var2vcf_val
         /opt/conda/envs/pipeline_env/bin/var2vcf_valid.pl
 
 
-# IMPORTANT: dossier de travail writable
-RUN mkdir -p /data /data/output /data/logs /data/data && \
-    chmod -R 777 /data
-
 # utilisateur non-root — UID/GID paramétrables pour matcher le compte hôte
 # qui possède les répertoires bind-montés (ex: build --build-arg PUID=$(id -u mars) PGID=$(id -g mars))
 ARG PUID=1000

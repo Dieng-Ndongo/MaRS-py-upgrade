@@ -282,3 +282,19 @@ sudo systemctl restart mars-streamlit
 sudo chown -R mars:mars /opt/mars-py-upgrade
 
 ```
+
+### 5. En cas de `permission denied` persistant (Docker)
+
+`sudo usermod -aG docker mars` n'a d'effet que sur les *nouveaux* processus démarrés après
+cette commande — si `mars` a été ajouté au groupe `docker` alors que le service
+`mars-streamlit` tournait déjà, celui-ci garde l'ancienne liste de groupes tant qu'il n'est
+pas redémarré, et chaque `docker build`/`docker run` échoue avec `permission denied while
+trying to connect to the Docker daemon socket`. Correctif en une commande (réapplique
+l'appartenance au groupe `docker`, la propriété `mars:mars`, force un rebuild propre de
+l'image, puis redémarre le service) :
+
+```bash
+
+sudo bash /opt/mars-py-upgrade/deploy/fix-server-permissions.sh
+
+```
