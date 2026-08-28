@@ -273,6 +273,13 @@ cd /opt/mars-py-upgrade
 sudo -u mars git pull origin production
 sudo systemctl restart mars-streamlit
 
+OR
+
+sudo bash /opt/mars-py-upgrade/deploy/fix-server-permissions.sh
+sudo -u mars git -C /opt/mars-py-upgrade pull origin production
+sudo systemctl restart mars-streamlit
+journalctl -u mars-streamlit -f
+
 ```
 
 `start.sh` détecte automatiquement les changements de `Dockerfile`/`environment.yml` et reconstruit l'image Docker si besoin (toujours avec le bon UID/GID, voir section 2) — aucune étape manuelle supplémentaire. Si `git pull` échoue avec `Permission denied` (par exemple parce qu'un fichier a été édité par erreur en tant que `root`), réappliquez la propriété avant de retenter :
