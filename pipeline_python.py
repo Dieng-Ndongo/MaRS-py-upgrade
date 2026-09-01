@@ -1363,7 +1363,7 @@ def run_vcf_to_df(input_dir=BASE_DIR / "output" / "vartype", output_dir=BASE_DIR
                 try:
                     subprocess.run(cmd, cwd=sample_output, stdout=log, stderr=log, text=True, check=True)
                 except subprocess.CalledProcessError as e:
-                    log.write(f"[ERREUR] {sample_id} - {tool} a échoué : {e}\n")
+                    log.write(f"[ERREUR] {sample_id} - vcf_merge.py a échoué sur le VCF {tool} : {e}\n")
                     raise
 
             elapsed = time.time() - start_sample

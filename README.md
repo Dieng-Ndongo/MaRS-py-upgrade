@@ -193,9 +193,11 @@ pip install -r requirements.txt
 
 ### 6. Exécution du pipeline
 
+`start.sh` est conçu pour tourner en production sous le compte dédié `mars` (voir la section déploiement plus bas) et refuse de démarrer sous tout autre utilisateur. Pour un test en local sous votre propre compte, autorisez explicitement le contournement avec `ALLOW_ANY_USER=1` :
+
 ```bash
 
-./start.sh
+ALLOW_ANY_USER=1 ./start.sh
 
 ```
 
