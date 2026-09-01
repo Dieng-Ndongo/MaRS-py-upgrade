@@ -277,6 +277,13 @@ sudo systemctl restart mars-streamlit
 
 OR
 
+cd /opt/mars-py-upgrade
+sudo -u mars git fetch origin
+sudo -u mars git checkout production
+sudo -u mars git reset --hard origin/production
+
+OR
+
 sudo bash /opt/mars-py-upgrade/deploy/fix-server-permissions.sh
 sudo -u mars git -C /opt/mars-py-upgrade pull origin production
 sudo systemctl restart mars-streamlit
