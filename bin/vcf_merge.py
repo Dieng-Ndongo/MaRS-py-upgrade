@@ -105,6 +105,8 @@ Genotype_1.columns = df_rows['FORMAT'].str.split(':', expand=True).iloc[0]
 ## Merge two dataframe
 df_rows  = pd.merge(df_rows, Genotype_1, left_index=True, right_index=True)
 df_rows["AD"] =np.nan if 'AD' not in df_rows.columns else df_rows['AD']
+df_rows["RO"] =np.nan if 'RO' not in df_rows.columns else df_rows['RO']
+df_rows["AO"] =np.nan if 'AO' not in df_rows.columns else df_rows['AO']
 
 ## filter the  INFO column to get the  annotation data
 ##'Allele | Annotation | Annotation_Impact | Gene_Name | Gene_ID | Feature_Type | Feature_ID | Transcript_BioType | Rank | HGVS.c | HGVS.p | cDNA.pos / cDNA.length | CDS.pos / CDS.length | AA.pos / AA.length |
@@ -153,32 +155,43 @@ df1['AA_change'] = [i[2:] for i in df1['HGVS.p']]
 ANN_info = df1.loc[:,['DP',"AF",'DP4', 'VARTYPE','Annotation', 'Annotation_Impact', '#CHROM',
                       'POS','AA_change','HGVS.c' , 'HGVS.p'] ]
 
-VCF_info = df_rows.loc[:,['#CHROM', 'POS', 'REF', 'ALT', 'QUAL','Sample_name', 'Source','AD']]
+VCF_info = df_rows.loc[:,['#CHROM', 'POS', 'REF', 'ALT', 'QUAL','Sample_name', 'Source','AD','RO','AO']]
 
 result = pd.merge(VCF_info, ANN_info, on=["#CHROM","POS"])
 
 
-VAF = []
-try:
-    for i in result['AD'].astype(str).str.split(","):
+def _row_vaf(ad_val, dp4_val, ro_val, ao_val, sample_id):
+    try:
+        ref, alt = (float(x) for x in str(ad_val).split(",")[:2])
+        total = ref + alt
+        return round(alt / total, 2) if total else 0.0
+    except (ValueError, IndexError, TypeError):
+        pass
+    try:
+        parts = [int(x) for x in str(dp4_val).split(",")]
+        ref, alt = parts[0] + parts[1], parts[2] + parts[3]
+        total = ref + alt
+        return round(alt / total, 2) if total else 0.0
+    except (ValueError, IndexError, TypeError):
+        pass
+    try:
+        ref = float(str(ro_val).split(",")[0])
+        alt = float(str(ao_val).split(",")[0])
+        total = ref + alt
+        return round(alt / total, 2) if total else 0.0
+    except (ValueError, IndexError, TypeError):
+        pass
+    print(f"[WARN] {sample_id}: impossible de calculer le VAF (AD/DP4/RO+AO absents ou invalides)")
+    return np.nan
 
-        alt =  float(i[1])
-        total = float(i[0])+ float(i[1])
-        if total == 0:
-            alfreq = 0.0
-        else:
-            alfreq = round(alt/float(total),2)
-        VAF.append(alfreq)
-
-except:
-    for i in result['DP4'].astype(str).str.split(","):
-        alt = int(i[2])+ int(i[3])
-        total = int(i[0])+ int(i[1])+int(i[2])+ int(i[3])
-        alfreq = round(alt/float(total),2)
-        VAF.append(alfreq)
+VAF = [
+    _row_vaf(ad, dp4, ro, ao, Sample_name)
+    for ad, dp4, ro, ao in zip(result['AD'], result['DP4'], result['RO'], result['AO'])
+]
 
 result["VAF"] = VAF
 result = result.replace(r'^\s*$', np.nan, regex=True)
+result = result.drop(columns=['RO', 'AO'])  # only needed internally for the VAF fallback above
 
 ## Change the value of Pfcrt 75 codon to correcly annotate
 

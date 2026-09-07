@@ -175,6 +175,8 @@ cd ~MaRS-py-upgrade
 ```
 ### 4. Construction de l'image docker
 
+Optionnel — `./start.sh` (étape 6) construit automatiquement l'image si elle est absente, avec le bon UID/GID pour votre utilisateur. Cette étape sert seulement à la construire à l'avance :
+
 ```bash
 
 docker build -t bioinfo_pipeline .
@@ -191,9 +193,11 @@ pip install -r requirements.txt
 
 ### 6. Exécution du pipeline
 
+`start.sh` est conçu pour tourner en production sous le compte dédié `mars` (voir la section déploiement plus bas) et refuse de démarrer sous tout autre utilisateur. Pour un test en local sous votre propre compte, autorisez explicitement le contournement avec `ALLOW_ANY_USER=1` :
+
 ```bash
 
-./start.sh
+ALLOW_ANY_USER=1 ./start.sh
 
 ```
 
@@ -228,7 +232,6 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now mars-streamlit.timer
 
 cd /opt/mars-py-upgrade
-sudo docker build --build-arg PUID=$(id -u mars) --build-arg PGID=$(id -g mars) -t bioinfo_pipeline .
 
 sudo systemctl start mars-streamlit
 sudo systemctl status mars-streamlit
@@ -240,7 +243,7 @@ df -h /
 ```
 Le démarrage automatique après un redémarrage du serveur est volontairement retardé de 15 minutes (`mars-streamlit.timer`, `OnBootSec=15min`) pour laisser le reste du serveur (réseau, Docker, autres services) se stabiliser avant de lancer l'app — ce délai ne s'applique qu'au déclenchement après un boot. Pour un démarrage immédiat (première installation, ou reprise manuelle après un arrêt), utilisez `sudo systemctl start mars-streamlit` directement ; la reprise sur échec (`Restart=on-failure`) reste également instantanée (5s), ce délai ne concerne que le boot.
 
-Le premier démarrage crée le venv Python 3.12, installe `requirements.txt` et construit l'image Docker `bioinfo_pipeline` (voir `start.sh`) — cette dernière étape peut prendre plusieurs minutes (résolution Conda d'une vingtaine d'outils bio-informatiques), ce qui est normal. Les démarrages suivants sont quasi instantanés, sauf si `Dockerfile`/`environment.yml` ont changé (reconstruction automatique de l'image).
+Le premier démarrage crée le venv Python 3.12, installe `requirements.txt` et construit l'image Docker `bioinfo_pipeline` (voir `start.sh`) — cette dernière étape peut prendre plusieurs minutes (résolution Conda d'une vingtaine d'outils bio-informatiques), ce qui est normal. `start.sh` construit toujours l'image avec le même UID/GID que le compte de service (`mars`), pour que le pipeline puisse écrire dans les répertoires `runs/` bind-montés — aucune commande `docker build` manuelle n'est nécessaire, même au premier démarrage. Les démarrages suivants sont quasi instantanés, sauf si `Dockerfile`/`environment.yml` ont changé (reconstruction automatique de l'image, toujours avec le bon UID/GID).
 
 ### 3. Exposer l'app via Cloudflare Tunnel
 L'app écoute uniquement en local (`127.0.0.1:8501`, voir `.streamlit/config.toml`) — aucun port public n'est ouvert. Ajoutez une règle d'ingress dans la config `cloudflared` existante du serveur (`/etc/cloudflared/config.yml`) :
@@ -260,11 +263,54 @@ cloudflared tunnel route dns <nom-du-tunnel> mars.votredomaine.tld
 
 sudo systemctl restart cloudflared
 
-# Boot Timer after Server Stop
-sudo cp deploy/mars-streamlit.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl disable mars-streamlit    # remove any old direct boot-enable
-sudo systemctl enable --now mars-streamlit.timer
-sudo systemctl start mars-streamlit      # start it now, since you don't want to wait 15 min today
+```
+
+### 4. Mettre à jour l'application
+
+Le dépôt (`/opt/mars-py-upgrade`) appartient à `mars` — les commandes git doivent donc être exécutées en tant que `mars`, pas en tant que votre utilisateur SSH :
+
+```bash
+
+cd /opt/mars-py-upgrade
+sudo -u mars git pull origin production
+sudo systemctl restart mars-streamlit
+
+OR
+
+cd /opt/mars-py-upgrade
+sudo -u mars git fetch origin
+sudo -u mars git checkout production
+sudo -u mars git reset --hard origin/production
+
+OR
+
+sudo bash /opt/mars-py-upgrade/deploy/fix-server-permissions.sh
+sudo -u mars git -C /opt/mars-py-upgrade pull origin production
+sudo systemctl restart mars-streamlit
+journalctl -u mars-streamlit -f
+
+```
+
+`start.sh` détecte automatiquement les changements de `Dockerfile`/`environment.yml` et reconstruit l'image Docker si besoin (toujours avec le bon UID/GID, voir section 2) — aucune étape manuelle supplémentaire. Si `git pull` échoue avec `Permission denied` (par exemple parce qu'un fichier a été édité par erreur en tant que `root`), réappliquez la propriété avant de retenter :
+
+```bash
+
+sudo chown -R mars:mars /opt/mars-py-upgrade
+
+```
+
+### 5. En cas de `permission denied` persistant (Docker)
+
+`sudo usermod -aG docker mars` n'a d'effet que sur les *nouveaux* processus démarrés après
+cette commande — si `mars` a été ajouté au groupe `docker` alors que le service
+`mars-streamlit` tournait déjà, celui-ci garde l'ancienne liste de groupes tant qu'il n'est
+pas redémarré, et chaque `docker build`/`docker run` échoue avec `permission denied while
+trying to connect to the Docker daemon socket`. Correctif en une commande (réapplique
+l'appartenance au groupe `docker`, la propriété `mars:mars`, force un rebuild propre de
+l'image, puis redémarre le service) :
+
+```bash
+
+sudo bash /opt/mars-py-upgrade/deploy/fix-server-permissions.sh
 
 ```
