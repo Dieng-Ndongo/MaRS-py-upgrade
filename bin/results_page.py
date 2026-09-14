@@ -707,7 +707,8 @@ def render_results_page(get_run_paths_fn):
     st.markdown(_CSS, unsafe_allow_html=True)
 
     # ── Sélecteur de run ──────────────────────
-    runs_base = Path.home() / "MaRS-py-upgrade" / "runs"
+    # Dériver runs_base depuis get_run_paths_fn (chemin dynamique, pas hardcodé)
+    runs_base = get_run_paths_fn("__probe__")["base"].parent
     available = sorted(
         [d.name.replace("run_", "") for d in runs_base.glob("run_*") if d.is_dir()],
         reverse=True,
@@ -803,7 +804,7 @@ def render_results_page(get_run_paths_fn):
                         df_hap_pdf = pd.read_csv(combined_hap, dtype=str).fillna("")
                     else:
                         st.warning("Combined_Haplotypes.csv introuvable — PDF sans haplotypes.")
-                    logo = Path.home() / "MaRS-py-upgrade" / "images" / "logoCIGASS.png"
+                    logo = runs_base.parent / "images" / "logoCIGASS.png"
                     pdf_bytes = generate_pdf_report(
                         run_id     = run_id,
                         output_dir = out,
