@@ -104,9 +104,9 @@ if [ -f "$REQ_HASH_FILE" ]; then
     SAVED_REQ_HASH=$(cat "$REQ_HASH_FILE")
 fi
 
-if [ "$CURRENT_REQ_HASH" != "$SAVED_REQ_HASH" ]; then
+if [ "$CURRENT_REQ_HASH" != "$SAVED_REQ_HASH" ] || [ ! -x "$VENV_DIR/bin/streamlit" ]; then
 
-    echo "[INFO] requirements.txt modifié — installation des dépendances..."
+    echo "[INFO] requirements.txt modifié ou streamlit absent — installation des dépendances..."
 
     "$VENV_DIR/bin/python" -m pip install --upgrade pip
     "$VENV_DIR/bin/python" -m pip install -r "$REQ_FILE"
@@ -240,5 +240,8 @@ echo ""
 
 echo "[INFO] Démarrage de Streamlit..."
 echo "[INFO] Application : $SCRIPT_DIR/app.py"
+
+# Reset session à chaque démarrage serveur
+rm -f "$SCRIPT_DIR/.runtime/session.json"
 
 exec "$VENV_DIR/bin/streamlit" run "$SCRIPT_DIR/app.py"
