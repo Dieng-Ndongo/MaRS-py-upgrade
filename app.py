@@ -34,6 +34,66 @@ HISTORY_FILE = REPO_DIR / "runs_history.json"
 HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # ════════════════════════════════════════════════
+# PERSISTANCE DE SESSION (résiste au refresh)
+# ════════════════════════════════════════════════
+_SESSION_DIR = REPO_DIR / ".runtime" / "sessions"
+_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+def _session_file(token: str):
+    return _SESSION_DIR / f"{token}.json"
+
+def _session_token() -> str:
+    """Token aléatoire persisté dans l'URL (?sid=...). Stable au refresh."""
+    import secrets as _sc
+    sid = st.query_params.get("sid", "")
+    if not sid or len(sid) < 16:
+        sid = _sc.token_hex(16)
+        st.query_params["sid"] = sid
+    return sid
+
+def _is_session_valid(token: str) -> bool:
+    f = _session_file(token)
+    if not f.exists():
+        return False
+    try:
+        data = json.loads(f.read_text())
+        return datetime.now().timestamp() < data.get("expires", 0)
+    except Exception:
+        return False
+
+def _create_session(token: str, page: str = "home"):
+    _session_file(token).write_text(json.dumps({
+        "created": datetime.now().isoformat(),
+        "expires": datetime.now().timestamp() + 8 * 3600,
+        "active_page": page,
+    }))
+
+def _get_session_page() -> str:
+    try:
+        return json.loads(_session_file(_session_token()).read_text()).get("active_page", "home")
+    except Exception:
+        return "home"
+
+def _save_session_page(page: str):
+    try:
+        tok = _session_token()
+        f   = _session_file(tok)
+        if not f.exists():
+            return
+        data = json.loads(f.read_text())
+        data["active_page"] = page
+        f.write_text(json.dumps(data))
+    except Exception:
+        pass
+
+def _delete_session(token: str):
+    f = _session_file(token)
+    if f.exists():
+        f.unlink()
+
+
+
+# ════════════════════════════════════════════════
 # TABLE DES MÉDICAMENTS — CODE TRAITEMENT
 # ════════════════════════════════════════════════
 DRUG_CODES = {
@@ -297,6 +357,15 @@ def only_upper_letter(value, length=1):
     return value.isalpha() and len(value) == length
 
 
+# Type échantillon AMD (pos 16) — lettre unique saisie par l'utilisateur
+SAMPLE_TYPE_EXAMPLE = "B"
+
+
+def is_sample_type_letter(value) -> bool:
+    """Type échantillon AMD (pos 16) : exactement 1 lettre (ex: B)."""
+    return isinstance(value, str) and len(value) == 1 and value.isalpha()
+
+
 def validate_common(year, country, state, day, treat, mol, proc):
     errors = []
     if not only_digits(year, 2):        errors.append("Année : exactement 2 chiffres (ex: 24)")
@@ -357,6 +426,175 @@ def get_pair_prefix(filename: str) -> str:
     name = re.sub(r'_[12]$',        '',   name)
     return name
 
+def validate_amd_filename(filename: str) -> dict:
+    """
+    Valide qu'un nom de fichier FASTQ respecte la nomenclature AMD (20 caractères).
+
+    Format Individual (20 car.) : YY CC SS DD T SSSS Gp St MMM P
+      ex : 18USGA00A1000PfB000Z
+      pos  1- 2 : Année           (2 chiffres)
+      pos  3- 4 : Pays            (2 lettres)
+      pos  5- 6 : État/Province   (2 lettres)
+      pos  7- 8 : Jour traitement (2 chiffres)
+      pos  9    : Code traitement (1 lettre)
+      pos 10-13 : Sample ID       (4 chiffres)
+      pos 14-15 : Genre/espèce    (2 lettres, ex: Pf)
+      pos 16    : Type échantillon(1 lettre)
+      pos 17-19 : Mol markers     (3 chiffres)
+      pos 20    : Processé        (1 car. alphanum : 1, 2, Z ou Y)
+
+    Format Pooled (20 car.) : YY CC SS DD T SSS P NN St MMM P
+      ex : 18USGA00A000P05B000Z
+      pos  1- 2 : Année           (2 chiffres)
+      pos  3- 4 : Pays            (2 lettres)
+      pos  5- 6 : État/Province   (2 lettres)
+      pos  7- 8 : Jour traitement (2 chiffres)
+      pos  9    : Code traitement (1 lettre)
+      pos 10-12 : Sample ID       (3 chiffres)
+      pos 13    : Marqueur Pool   ('P' fixe)
+      pos 14-15 : Nb dans pool    (2 chiffres)
+      pos 16    : Type échantillon(1 lettre)
+      pos 17-19 : Mol markers     (3 chiffres)
+      pos 20    : Processé        (1 car. alphanum : 1, 2, Z ou Y)
+
+    Retourne un dict {valid, type, stem, errors}
+    où errors est une liste de dicts {pos, field, got, expected, note}.
+    """
+    # ── Extraire la base AMD (retirer extension + suffixe _R1/_R2) ────────
+    stem = filename
+    for ext in (".fastq.gz", ".fastq"):
+        if stem.endswith(ext):
+            stem = stem[: -len(ext)]
+            break
+    stem = re.sub(r'[_.]R[12][_.].*$', '', stem, flags=re.IGNORECASE)
+    stem = re.sub(r'[_.]R[12]$',       '', stem, flags=re.IGNORECASE)
+    stem = re.sub(r'_[12]$',           '', stem)
+
+    result = {"stem": stem, "type": "unknown", "errors": [], "valid": False}
+    E = result["errors"]
+
+    def err(pos, field, got, expected, note=""):
+        E.append({"pos": pos, "field": field, "got": got, "expected": expected, "note": note})
+
+    # ── Vérification de la longueur ───────────────────────────────────────
+    n = len(stem)
+    if n < 20:
+        SCHEMA_INDIV = (
+            "Format Individual (20 car.) : YY·CC·SS·DD·T·SSSS·Gp·St·MMM·P\n"
+            "  ex : 18USGA00A1000PfB000Z\n"
+            "  pos  1- 2 : Année           (2 chiffres)\n"
+            "  pos  3- 4 : Pays            (2 lettres)\n"
+            "  pos  5- 6 : État/Province   (2 lettres)\n"
+            "  pos  7- 8 : Jour traitement (2 chiffres)\n"
+            "  pos  9    : Code traitement (1 lettre)\n"
+            "  pos 10-13 : Sample ID       (4 chiffres)\n"
+            "  pos 14-15 : Genre/espèce    (2 lettres, ex: Pf)\n"
+            "  pos 16    : Type échantillon(1 lettre)\n"
+            "  pos 17-19 : Mol markers     (3 chiffres)\n"
+            "  pos 20    : Processé        (1 car. : 1, 2, Z ou Y)\n\n"
+            "Format Pooled (20 car.)      : YY·CC·SS·DD·T·SSS·P·NN·St·MMM·P\n"
+            "  ex : 18USGA00A000P05B000Z\n"
+            "  pos  1- 2 : Année           (2 chiffres)\n"
+            "  pos  3- 4 : Pays            (2 lettres)\n"
+            "  pos  5- 6 : État/Province   (2 lettres)\n"
+            "  pos  7- 8 : Jour traitement (2 chiffres)\n"
+            "  pos  9    : Code traitement (1 lettre)\n"
+            "  pos 10-12 : Sample ID       (3 chiffres)\n"
+            "  pos 13    : Marqueur Pool   ('P' fixe)\n"
+            "  pos 14-15 : Nb dans pool    (2 chiffres)\n"
+            "  pos 16    : Type échantillon(1 lettre)\n"
+            "  pos 17-19 : Mol markers     (3 chiffres)\n"
+            "  pos 20    : Processé        (1 car. : 1, 2, Z ou Y)"
+        )
+        err(
+            f"1–{n}",
+            "Longueur totale",
+            f"{n} caractère(s)",
+            "20 caractères exactement",
+            note=SCHEMA_INDIV,
+        )
+        return result  # impossible de valider les champs individuels
+
+    # ── Champs communs (pos 1-9) ──────────────────────────────────────────
+    year    = stem[0:2]
+    country = stem[2:4]
+    state   = stem[4:6]
+    day     = stem[6:8]
+    treat   = stem[8]
+
+    if not year.isdigit():
+        err("1–2",  "Année",           year,    "2 chiffres",  "ex : 18, 24")
+    if not country.isalpha():
+        err("3–4",  "Pays",            country, "2 lettres",   "ex : US, SN")
+    if not state.isalpha():
+        err("5–6",  "État/Province",   state,   "2 lettres",   "ex : GA, DK")
+    if not day.isdigit():
+        err("7–8",  "Jour traitement", day,     "2 chiffres",  "ex : 00, 14")
+    if not treat.isalpha():
+        err("9",    "Code traitement", treat,   "1 lettre",    "ex : A, F, G")
+
+    # ── Détection Individual vs Pooled (pos 13 == 'P' → Pooled) ──────────
+    is_pooled = stem[12] == 'P'
+
+    SCHEMA_POOLED = (
+        "Format Pooled (20 car.) : YY·CC·SS·DD·T·SSS·P·NN·St·MMM·P\n"
+        "  ex : 18USGA00A000P05B000Z\n"
+        "  pos 10-12 : Sample ID    (3 chiffres)\n"
+        "  pos 13    : Marqueur Pool('P' fixe)\n"
+        "  pos 14-15 : Nb dans pool (2 chiffres)\n"
+        "  pos 16    : Type éch.    (1 lettre)\n"
+        "  pos 17-19 : Mol markers  (3 chiffres)\n"
+        "  pos 20    : Processé     (1 car. : 1, 2, Z ou Y)"
+    )
+    SCHEMA_INDIV = (
+        "Format Individual (20 car.) : YY·CC·SS·DD·T·SSSS·Gp·St·MMM·P\n"
+        "  ex : 18USGA00A1000PfB000Z\n"
+        "  pos 10-13 : Sample ID    (4 chiffres)\n"
+        "  pos 14-15 : Genre/espèce (2 lettres, ex: Pf)\n"
+        "  pos 16    : Type éch.    (1 lettre)\n"
+        "  pos 17-19 : Mol markers  (3 chiffres)\n"
+        "  pos 20    : Processé     (1 car. : 1, 2, Z ou Y)"
+    )
+
+    if is_pooled:
+        result["type"] = "Pooled"
+        sid3  = stem[9:12]
+        npool = stem[13:15]
+        stype = stem[15]
+        mol   = stem[16:19]
+        proc  = stem[19]
+        if not sid3.isdigit():
+            err("10–12", "Sample ID (Pooled)",  sid3,  "3 chiffres",          f"ex : 000, 042\n\n{SCHEMA_POOLED}")
+        if not npool.isdigit():
+            err("14–15", "Nb dans pool",         npool, "2 chiffres",          f"ex : 05, 12\n\n{SCHEMA_POOLED}")
+        if not stype.isalpha():
+            err("16",    "Type échantillon",     stype, "1 lettre",            f"ex : B\n\n{SCHEMA_POOLED}")
+        if not mol.isdigit():
+            err("17–19", "Mol markers",          mol,   "3 chiffres",          f"ex : 000, 508\n\n{SCHEMA_POOLED}")
+        if not proc.isalnum():
+            err("20",    "Processé",             proc,  "1 car. alphanumérique","1 = 1er passage, 2 = répétition (ou Z / Y)")
+    else:
+        result["type"] = "Individual"
+        sid4  = stem[9:13]
+        genus = stem[13:15]
+        stype = stem[15]
+        mol   = stem[16:19]
+        proc  = stem[19]
+        if not sid4.isdigit():
+            err("10–13", "Sample ID (Individual)", sid4,  "4 chiffres",        f"ex : 1000, 0042\n\n{SCHEMA_INDIV}")
+        if not genus.isalpha():
+            err("14–15", "Genre/espèce",           genus, "2 lettres",         f"ex : Pf\n\n{SCHEMA_INDIV}")
+        if not stype.isalpha():
+            err("16",    "Type échantillon",        stype, "1 lettre",          f"ex : B\n\n{SCHEMA_INDIV}")
+        if not mol.isdigit():
+            err("17–19", "Mol markers",             mol,   "3 chiffres",        f"ex : 000, 508\n\n{SCHEMA_INDIV}")
+        if not proc.isalnum():
+            err("20",    "Processé",                proc,  "1 car. alphanumérique","1 = 1er passage, 2 = répétition (ou Z / Y)")
+
+    result["valid"] = len(E) == 0
+    return result
+
+
 def reset_state():
     preserve = {"authenticated", "notif_enabled", "notif_failure_only"}
     for k, v in DEFAULTS.items():
@@ -389,6 +627,7 @@ def generate_template(pairs=None):
         "Sample ID Individual (4 chiffres)",
         "Sample ID Pooled (3 chiffres)",
         "Nb de pool (2 chiffres)",
+        "Type échantillon (1 lettre maj.)",
         "k13 (0/1)", "crt (0/1)", "mdr1 (0/1)",
         "cytb (0/1)", "dhps (0/1)", "dhfr (0/1)",
         "pfs47 (0/1)", "TBD1 (0/1)", "TBD2 (0/1)",
@@ -401,14 +640,20 @@ def generate_template(pairs=None):
     header_fill  = PatternFill(start_color="0ea5e9", end_color="0ea5e9", fill_type="solid")
     mol_hdr_fill = PatternFill(start_color="7c3aed", end_color="7c3aed", fill_type="solid")
  
+    stype_hdr_fill = PatternFill(start_color="0e7490", end_color="0e7490", fill_type="solid")
     for col_num, cell in enumerate(ws[1], 1):
-        is_id  = col_num == 1
-        is_mol = 11 <= col_num <= 19
+        is_id    = col_num == 1
+        is_stype = col_num == 11
+        is_mol   = 12 <= col_num <= 20
         cell.font      = Font(bold=True, color="FFFFFF")
-        cell.fill      = id_fill if is_id else (mol_hdr_fill if is_mol else header_fill)
+        cell.fill      = (
+            id_fill if is_id else
+            stype_hdr_fill if is_stype else
+            (mol_hdr_fill if is_mol else header_fill)
+        )
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
         ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = (
-            20 if is_id else (18 if is_mol else 26)
+            20 if is_id else (18 if is_mol else (22 if is_stype else 26))
         )
  
     # ── Remplissage des lignes de données ──────────────────────────────────
@@ -420,7 +665,7 @@ def generate_template(pairs=None):
         for idx, pair in enumerate(pairs):
             sample_id = get_sample_id(pair["r1"].name)
             # Ligne avec ID Sample pré-rempli, reste vide à compléter
-            row = [sample_id] + [""] * 19
+            row = [sample_id] + [""] * 20
             ws.append(row)
             fill = data_fill if idx % 2 == 0 else alt_fill
             for cell in ws[ws.max_row]:
@@ -431,9 +676,9 @@ def generate_template(pairs=None):
         # Exemples génériques si pas de paires
         ex_fill = PatternFill(start_color="f0f9ff", end_color="f0f9ff", fill_type="solid")
         examples = [
-            ["SAMPLE001", "Individual", "24", "SN", "DK", "00", "A", "1000", "", "",    1, 1, 1, 1, 1, 1, 1, 0, 0, "1"],
-            ["SAMPLE002", "Individual", "24", "SN", "DK", "00", "B", "1001", "", "",    1, 0, 0, 0, 0, 0, 0, 0, 0, "1"],
-            ["POOL001",   "Pooled",     "24", "SN", "DK", "00", "F", "",     "000","05",0, 0, 0, 0, 1, 1, 0, 0, 0, "1"],
+            ["SAMPLE001", "Individual", "24", "SN", "DK", "00", "A", "1000", "", "", "B",  1, 1, 1, 1, 1, 1, 1, 0, 0, "1"],
+            ["SAMPLE002", "Individual", "24", "SN", "DK", "00", "B", "1001", "", "", "B",  1, 0, 0, 0, 0, 0, 0, 0, 0, "1"],
+            ["POOL001",   "Pooled",     "24", "SN", "DK", "00", "F", "",     "000","05","B",0, 0, 0, 0, 1, 1, 0, 0, 0, "1"],
         ]
         for row in examples:
             ws.append(row)
@@ -454,6 +699,7 @@ def generate_template(pairs=None):
         ["Sample ID Individual", "4 chiffres (si Individual)", "1000"],
         ["Sample ID numérique Pooled", "3 chiffres (si Pooled)", "000"],
         ["Nb dans pool", "2 chiffres (si Pooled)", "05"],
+        ["Type échantillon", "1 lettre majuscule (ex: B)", "B"],
         ["k13 … TBD2", "0 (absent) ou 1 (présent) pour chaque marqueur", "1"],
         ["", "", ""],
         ["NOTE", "⚠️ Ne pas modifier la colonne ID Sample — elle sert à identifier vos fichiers.", ""],
@@ -514,8 +760,6 @@ def generate_template(pairs=None):
 # SESSION STATE
 # ════════════════════════════════════════════════
 DEFAULTS = {
-    "authenticated":      False,
-    "active_page":        "home",
     "prev_page":          "home",
     "uploaded_pairs":     list,
     "upload_done":        False,
@@ -945,6 +1189,7 @@ with st.sidebar:
                     subprocess.run(["docker", "stop", container_id], capture_output=True)
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            _delete_session(_session_token())
             st.session_state["authenticated"] = False
             st.rerun()
 
@@ -955,8 +1200,17 @@ if st.session_state.get("running"):
 # ════════════════════════════════════════════════
 # AUTHENTIFICATION
 # ════════════════════════════════════════════════
+# Restaurer la session depuis le token URL au lieu de redemander le mot de passe
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
+    _tok = _session_token()
+    _valid = _is_session_valid(_tok)
+    st.session_state["authenticated"] = _valid
+
+# Garantir l'existence de active_page (ex: après déconnexion / reconnexion)
+if "active_page" not in st.session_state:
+    st.session_state["active_page"] = (
+        _get_session_page() if st.session_state.get("authenticated") else "home"
+    )
 
 if not st.session_state["authenticated"]:
     st.markdown("""
@@ -982,6 +1236,8 @@ if not st.session_state["authenticated"]:
         if st.button("Connexion", width='stretch'):
             if pwd == st.secrets["APP_PASSWORD"]:
                 st.session_state["authenticated"] = True
+                st.session_state["active_page"] = st.session_state.get("active_page", "home")
+                _create_session(_session_token())
                 st.rerun()
             else:
                 st.error("Mot de passe incorrect")
@@ -1023,6 +1279,7 @@ for col, (_pid, _lbl) in zip(nav_cols, _nav_items):
         if st.button(_lbl, key=f"nav_{_pid}", width='stretch'):
             st.session_state["prev_page"]   = st.session_state.get("active_page", "home")
             st.session_state["active_page"] = _pid
+            _save_session_page(_pid)
             if _pid == "results" and st.session_state.get("run_id"):
                 st.session_state["results_run_id"] = st.session_state["run_id"]
             st.rerun()
@@ -1031,31 +1288,23 @@ for col, (_pid, _lbl) in zip(nav_cols, _nav_items):
 _qp = st.query_params.get("nav", None)
 if _qp in [p[0] for p in _nav_items]:
     st.session_state["active_page"] = _qp
+    _save_session_page(_qp)
     st.query_params.clear()
     st.rerun()
 
 
 if st.session_state.get("notif_banner"):
-    n = st.session_state["notif_banner"]
-    if n["type"] == "success":
-        st.markdown(f'<div style="background:#edfaf0;border:1px solid #a8d5b5;border-left:4px solid #28a745;border-radius:4px;padding:18px 22px;margin-bottom:20px;color:#14532d;font-size:0.95rem;font-weight:500;">{n["msg"]}</div>', unsafe_allow_html=True)
-        st.toast(n["msg"], icon="✅")
-    else:
-        st.markdown(f'<div style="background:#fdf0f0;border:1px solid #f0b8b8;border-left:4px solid #dc3545;border-radius:4px;padding:18px 22px;margin-bottom:20px;color:#7f1d1d;font-size:0.95rem;font-weight:500;">{n["msg"]}</div>', unsafe_allow_html=True)
-        st.toast(n["msg"], icon="❌")
-    col1, col2 = st.columns([8, 1])
-    with col2:
-        if st.button("✕", key="close_notif"):
-            del st.session_state["notif_banner"]
-            _nf = REPO_DIR / "pending_notif.json"
-            if _nf.exists():
-                _nf.unlink()
-            st.rerun()
+    n    = st.session_state["notif_banner"]
+    icon = "✅" if n["type"] == "success" else "❌"
+    st.toast(n["msg"], icon=icon)
+    del st.session_state["notif_banner"]
+    _nf = REPO_DIR / "pending_notif.json"
+    if _nf.exists():
+        _nf.unlink()
 
 
 st.markdown("---")
-active_page = st.session_state["active_page"]
-active_page = st.session_state["active_page"]
+active_page = st.session_state.get("active_page", "home")
 
 
 if active_page == "home":
@@ -1367,26 +1616,79 @@ elif active_page == "pipeline":
                     col_direct, col_rename = st.columns(2)
                     with col_direct:
                         if st.button("▶  Lancer directement\n\nMes fichiers sont déjà au format AMD", width='stretch'):
-                            sample_names = []
+                            # ── Vérification nomenclature AMD ─────────────────
+                            amd_invalid = {}
                             for p in pairs_built:
-                                base = re.sub(r'[_.]R[12].*$', '', p["r1"].name, flags=re.IGNORECASE)
-                                sample_names.append({
-                                    "base": base, "type": "Direct",
-                                    "r1": p["r1"].name, "r2": p["r2"].name,
-                                    "orig_r1": p["r1"].name, "orig_r2": p["r2"].name,
-                                    "file_r1": p["r1"], "file_r2": p["r2"],
-                                })
-                            st.session_state["uploaded_pairs"]    = pairs_built
-                            st.session_state["upload_done"]       = True
-                            st.session_state["naming_mode"]       = "direct"
-                            st.session_state["sample_names"]      = sample_names
-                            st.session_state["nomenclature_done"] = True
-                            st.rerun()
+                                # On vérifie uniquement le R1 (la base AMD est identique pour R1 et R2)
+                                res = validate_amd_filename(p["r1"].name)
+                                if not res["valid"]:
+                                    amd_invalid[p["r1"].name] = res
+
+                            if amd_invalid:
+                                n_bad = len(amd_invalid)
+                                st.error(
+                                    f"❌ **{n_bad} échantillon(s) non conformes à la nomenclature AMD.** "
+                                    "Corrigez les noms ou utilisez le bouton « Renommer les échantillons »."
+                                )
+                                for fname, res in amd_invalid.items():
+                                    type_label = {
+                                        "Individual": "🔵 Individual",
+                                        "Pooled":     "🟢 Pooled",
+                                    }.get(res["type"], "❓ Format inconnu")
+                                    with st.expander(
+                                        f"🔴  `{res['stem']}`  —  {type_label}  "
+                                        f"({len(res['stem'])} car. détectés, 20 requis)",
+                                        expanded=True,
+                                    ):
+                                        for e in res["errors"]:
+                                            st.markdown(
+                                                f"**{e['field']}** *(pos {e['pos']})* — "
+                                                f"obtenu : `{e['got']}` — "
+                                                f"attendu : **{e['expected']}**"
+                                            )
+                                            if e["note"]:
+                                                st.code(e["note"], language=None)
+                            else:
+                                # ── Tous les fichiers sont conformes → on continue ──
+                                sample_names = []
+                                for p in pairs_built:
+                                    base = re.sub(r'[_.]R[12].*$', '', p["r1"].name, flags=re.IGNORECASE)
+                                    sample_names.append({
+                                        "base": base, "type": "Direct",
+                                        "r1": p["r1"].name, "r2": p["r2"].name,
+                                        "orig_r1": p["r1"].name, "orig_r2": p["r2"].name,
+                                        "file_r1": p["r1"], "file_r2": p["r2"],
+                                    })
+                                st.session_state["uploaded_pairs"]    = pairs_built
+                                st.session_state["upload_done"]       = True
+                                st.session_state["naming_mode"]       = "direct"
+                                st.session_state["sample_names"]      = sample_names
+                                st.session_state["nomenclature_done"] = True
+                                # Nettoyer tout résidu d'un run précédent
+                                st.session_state["run_id"]            = None
+                                st.session_state["pipeline_done"]     = False
+                                st.session_state["running"]           = False
+                                st.session_state["log_file"]          = ""
+                                st.session_state["notif_banner"]      = None
+                                _notif_file = REPO_DIR / "pending_notif.json"
+                                if _notif_file.exists():
+                                    _notif_file.unlink()
+                                st.rerun()
                     with col_rename:
                         if st.button("🏷️  Renommer les échantillons\n\nAssocier chaque fichier à sa nomenclature AMD", width='stretch'):
-                            st.session_state["uploaded_pairs"] = pairs_built
-                            st.session_state["upload_done"]    = True
-                            st.session_state["naming_mode"]    = None
+                            st.session_state["uploaded_pairs"]    = pairs_built
+                            st.session_state["upload_done"]       = True
+                            st.session_state["naming_mode"]       = None
+                            # Nettoyer tout résidu d'un run précédent
+                            st.session_state["run_id"]            = None
+                            st.session_state["nomenclature_done"] = False
+                            st.session_state["pipeline_done"]     = False
+                            st.session_state["running"]           = False
+                            st.session_state["log_file"]          = ""
+                            st.session_state["notif_banner"]      = None
+                            _notif_file = REPO_DIR / "pending_notif.json"
+                            if _notif_file.exists():
+                                _notif_file.unlink()
                             st.rerun()
                 else:
                     st.info("ℹ️ Résolvez les erreurs d'appairage avant de pouvoir continuer.")
@@ -1399,9 +1701,20 @@ elif active_page == "pipeline":
         pairs = st.session_state.get("uploaded_pairs", [])
 
         if st.button("← Retour à l'upload"):
-            st.session_state["upload_done"]   = False
-            st.session_state["naming_mode"]   = None
-            st.session_state["sample_names"]  = []
+            st.session_state["upload_done"]       = False
+            st.session_state["naming_mode"]       = None
+            st.session_state["sample_names"]      = []
+            # Réinitialiser aussi les états liés à un éventuel run précédent
+            # pour ne pas afficher de faux messages d'échec ou de succès
+            st.session_state["run_id"]            = None
+            st.session_state["nomenclature_done"] = False
+            st.session_state["pipeline_done"]     = False
+            st.session_state["running"]           = False
+            st.session_state["log_file"]          = ""
+            st.session_state["notif_banner"]      = None
+            _notif_file = REPO_DIR / "pending_notif.json"
+            if _notif_file.exists():
+                _notif_file.unlink()
             st.rerun()
 
         st.markdown('<div class="section-label">Étape 2 — Nomenclature AMD</div>', unsafe_allow_html=True)
@@ -1482,6 +1795,12 @@ elif active_page == "pipeline":
                 try:
                     wb   = openpyxl.load_workbook(excel_file)
                     ws   = wb.active
+                    # Détecte la colonne « Type échantillon » (compat anciens templates)
+                    _hdr = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()) or ()
+                    has_stype_col = any(
+                        str(h).strip().lower().startswith("type éch")
+                        for h in _hdr if h is not None
+                    )
                     rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if any(r)]
                     errors = []; names = []
  
@@ -1494,9 +1813,9 @@ elif active_page == "pipeline":
  
                     for row_idx, row in enumerate(rows, start=2):
                         cells = [str(v).strip() if v is not None else "" for v in row]
-                        while len(cells) < 20:
+                        while len(cells) < 21:
                             cells.append("")
- 
+
                         id_sample   = cells[0].strip()
                         sample_type = cells[1].upper()
                         year        = cells[2].upper()
@@ -1507,8 +1826,14 @@ elif active_page == "pipeline":
                         sid_ind     = cells[7].upper()
                         sid3_pool   = cells[8].upper()
                         npool       = cells[9].upper()
-                        mol_bits    = cells[10:19]
-                        proc_raw    = cells[19].strip()
+                        if has_stype_col:
+                            stype_cell = cells[10].strip().upper()
+                            mol_bits   = cells[11:20]
+                            proc_raw   = cells[20].strip()
+                        else:
+                            stype_cell = "B"   # ancien template : pas de colonne
+                            mol_bits   = cells[10:19]
+                            proc_raw   = cells[19].strip()
  
                         # ── Matching par ID Sample ──────────────────────────
                         pair = pairs_by_id.get(id_sample)
@@ -1558,6 +1883,10 @@ elif active_page == "pipeline":
                             continue
  
                         row_errors = validate_common(year, country, state, day, treat, mol, proc)
+                        if not is_sample_type_letter(stype_cell):
+                            row_errors.append(
+                                "Type échantillon : exactement 1 lettre majuscule (ex: B)"
+                            )
                         for e in row_errors:
                             errors.append(f"Ligne {row_idx} ({id_sample}) : {e}")
  
@@ -1565,7 +1894,7 @@ elif active_page == "pipeline":
                             if not only_digits(sid_ind, 4):
                                 errors.append(f"Ligne {row_idx} ({id_sample}) : Sample ID Individual doit être 4 chiffres")
                             if not row_errors and only_digits(sid_ind, 4):
-                                base    = build_base(year, country, state, day, treat, sid_ind, "Pf" + "B" + mol + proc)
+                                base    = build_base(year, country, state, day, treat, sid_ind, "Pf" + stype_cell + mol + proc)
                                 r1_name = build_new_filename(base, pair["r1"].name)
                                 r2_name = build_new_filename(base, pair["r2"].name)
                                 names.append({
@@ -1582,7 +1911,7 @@ elif active_page == "pipeline":
                             if not only_digits(npool, 2):
                                 errors.append(f"Ligne {row_idx} ({id_sample}) : Nb dans pool doit être 2 chiffres")
                             if not row_errors and only_digits(sid3_pool, 3) and only_digits(npool, 2):
-                                base    = build_base(year, country, state, day, treat, sid3_pool + "P" + npool, "B" + mol + proc)
+                                base    = build_base(year, country, state, day, treat, sid3_pool + "P" + npool, stype_cell + mol + proc)
                                 r1_name = build_new_filename(base, pair["r1"].name)
                                 r2_name = build_new_filename(base, pair["r2"].name)
                                 names.append({
@@ -1676,16 +2005,24 @@ elif active_page == "pipeline":
             """, unsafe_allow_html=True)
  
             # ── Initialisation ───────────────────────────────────────────────
-            if "manual_rows" not in st.session_state or len(st.session_state["manual_rows"]) != n_pairs:
+            # Fingerprint basé sur les noms des fichiers uploadés : si les fichiers
+            # changent (même nombre), on recrée les lignes vides.
+            _pairs_fingerprint = tuple(sorted(p["r1"].name for p in pairs))
+            if (
+                "manual_rows" not in st.session_state
+                or len(st.session_state["manual_rows"]) != n_pairs
+                or st.session_state.get("_manual_rows_fingerprint") != _pairs_fingerprint
+            ):
                 st.session_state["manual_rows"] = [
                     {
                         "year": "", "country": "", "state": "", "day": "",
                         "treat": "", "type": "Individual",
-                        "sid": "", "sid3": "", "npool": "",
+                        "sid": "", "sid3": "", "npool": "", "stype": "",
                         "mol_markers": [], "proc": "1", "drug": DRUG_OPTIONS[0],
                     }
                     for _ in pairs
                 ]
+                st.session_state["_manual_rows_fingerprint"] = _pairs_fingerprint
             rows_state = st.session_state["manual_rows"]
  
             # ── Compteur de rerun pour rendre les clés uniques ───────────────
@@ -1694,11 +2031,11 @@ elif active_page == "pipeline":
             rc_count = st.session_state["manual_rerun_count"]
  
             # ── Colonnes ─────────────────────────────────────────────────────
-            COL_W      = [0.28, 1.25, 0.85, 0.6, 0.6, 0.6, 0.6, 1.85, 0.55, 0.6, 1.05, 1.2]
+            COL_W      = [0.28, 1.25, 0.85, 0.6, 0.6, 0.6, 0.6, 1.85, 0.55, 0.6, 1.05, 0.75, 1.2]
             COL_LABELS = ["#", "ID Sample", "Type", "Année", "Pays", "État",
-                          "Jour", "Médicament", "Code", "Proc.", "SID / Pool", "Mol markers"]
+                          "Jour", "Médicament", "Code", "Proc.", "SID / Pool", "Type éch.", "Mol markers"]
             HEADER_BG  = ["#2a3a5a","#0f4c81","#1a2a4a","#1a2a4a","#1a2a4a","#1a2a4a",
-                          "#1a2a4a","#1a2a4a","#1a2a4a","#1a2a4a","#1a2a4a","#4a235a"]
+                          "#1a2a4a","#1a2a4a","#1a2a4a","#1a2a4a","#1a2a4a","#0e7490","#4a235a"]
  
             hdr = st.columns(COL_W)
             for col, label, bg in zip(hdr, COL_LABELS, HEADER_BG):
@@ -1859,11 +2196,20 @@ elif active_page == "pipeline":
                     active_keys[i]["sid3"]  = k_sid3
                     active_keys[i]["npool"] = k_npool
  
-                # Col 11 — Mol markers
+                # Col 11 — Type échantillon (1 lettre majuscule)
+                k_stype = f"w_stype_{i}_{rc_count}"
+                rc[11].text_input(
+                    f"Type éch. {i+1}", max_chars=1, placeholder="B",
+                    key=k_stype, value=rv.get("stype", ""),
+                    label_visibility="collapsed"
+                )
+                active_keys[i]["stype"] = k_stype
+
+                # Col 12 — Mol markers
                 # La clé encode rc_count + les marqueurs actuels pour forcer
                 # la recréation du widget après fill-all (même logique que text_input)
                 k_mol = f"w_mol_{i}_{rc_count}"
-                rc[11].multiselect(
+                rc[12].multiselect(
                     f"Mol {i+1}", options=MOL_MARKERS_LIST,
                     default=rv.get("mol_markers", []),
                     key=k_mol,
@@ -1873,7 +2219,7 @@ elif active_page == "pipeline":
                 active_keys[i]["mol"] = k_mol
                 mol_code = compute_mol_code(rv.get("mol_markers", []))
                 if rv.get("mol_markers"):
-                    rc[11].markdown(
+                    rc[12].markdown(
                         f'<div class="mol-pill">{mol_code} ({len(rv["mol_markers"])})</div>',
                         unsafe_allow_html=True
                     )
@@ -1909,6 +2255,7 @@ elif active_page == "pipeline":
                     rv["npool"] = st.session_state.get(keys["npool"], rv.get("npool", "")) if keys["npool"] else ""
                     rv["sid"]   = ""
  
+                rv["stype"] = str(st.session_state.get(keys["stype"], rv.get("stype", ""))).strip().upper()
                 rv["mol_markers"] = list(st.session_state.get(keys["mol"], rv.get("mol_markers", [])))
  
             # ════════════════════════════════════════════════════════════════
@@ -1929,6 +2276,7 @@ elif active_page == "pipeline":
                     ("sid",         "Sample ID Ind.",  lambda rv: rv.get("sid", "")),
                     ("sid3",        "ID Pooled",       lambda rv: rv.get("sid3", "")),
                     ("npool",       "Nb pool",         lambda rv: rv.get("npool", "")),
+                    ("stype",       "Type éch.",       lambda rv: rv.get("stype", "")),
                     ("mol_markers", "Mol markers",     lambda rv: rv.get("mol_markers", [])),
                 ]
  
@@ -1998,10 +2346,13 @@ elif active_page == "pipeline":
  
             for i, (pair, rv) in enumerate(zip(pairs, rows_state)):
                 mol_code   = compute_mol_code(rv.get("mol_markers", []))
+                stype_val  = str(rv.get("stype", "")).strip().upper()
                 errors_row = validate_common(
                     rv["year"], rv["country"], rv["state"],
                     rv["day"], rv["treat"], mol_code, rv["proc"]
                 )
+                if not is_sample_type_letter(stype_val):
+                    errors_row.append("Type échantillon : exactement 1 lettre majuscule (ex: B)")
                 base = ""
                 if not errors_row:
                     if rv["type"] == "Individual":
@@ -2010,7 +2361,7 @@ elif active_page == "pipeline":
                             base = build_base(
                                 rv["year"], rv["country"], rv["state"],
                                 rv["day"], rv["treat"], sid,
-                                "Pf" + "B" + mol_code + rv["proc"]
+                                "Pf" + stype_val + mol_code + rv["proc"]
                             )
                     else:
                         sid3  = rv.get("sid3", "")
@@ -2019,7 +2370,7 @@ elif active_page == "pipeline":
                             base = build_base(
                                 rv["year"], rv["country"], rv["state"],
                                 rv["day"], rv["treat"], sid3 + "P" + npool,
-                                "B" + mol_code + rv["proc"]
+                                stype_val + mol_code + rv["proc"]
                             )
  
                 sample_id = get_sample_id(pair["r1"].name)
@@ -2036,7 +2387,7 @@ elif active_page == "pipeline":
                     </div>
                     """, unsafe_allow_html=True)
                     names_preview.append({
-                        "base": base, "type": rv["type"],
+                        "base": base, "type": rv["type"], "stype": stype_val,
                         "r1": r1_new, "r2": r2_new,
                         "orig_r1": pair["r1"].name, "orig_r2": pair["r2"].name,
                         "file_r1": pair["r1"], "file_r2": pair["r2"],
@@ -2190,6 +2541,7 @@ elif active_page == "pipeline":
 
                     cur_type = n.get("type", "Individual")
                     b = n["base"]
+                    cur_stype = b[15:16] if len(b) >= 16 else ""
                     if cur_type == "Individual":
                         cur_sid_ind = b[9:13]  if len(b) >= 13 else ""
                         cur_proc    = b[19:20] if len(b) >= 20 else (b[-1] if b else "1")
@@ -2208,6 +2560,8 @@ elif active_page == "pipeline":
                     e_type = st.radio("Type", ["Individual", "Pooled"], horizontal=True,
                                       key=f"e_type_{i}",
                                       index=0 if cur_type in ("Individual","Direct") else 1)
+                    e_stype = st.text_input("Type échantillon (1 lettre majuscule)", max_chars=1,
+                                            value=cur_stype, key=f"e_stype_{i}")
                     if e_type == "Individual":
                         e_sid  = st.text_input("Sample ID Individual (4 chiffres)", max_chars=4,
                                                value=cur_sid_ind, key=f"e_sid_{i}")
@@ -2222,20 +2576,23 @@ elif active_page == "pipeline":
                                            index=0 if cur_proc != "2" else 1)
 
                     if st.button("💾 Sauvegarder les modifications", key=f"save_edit_{i}"):
+                        e_stype_val = str(e_stype or "").strip().upper()
                         err = validate_common(e_year, e_country, e_state, e_day, e_treat, e_mol_code, e_proc)
+                        if not is_sample_type_letter(e_stype_val):
+                            err.append("Type échantillon : exactement 1 lettre majuscule (ex: B)")
                         new_base = ""
                         if not err:
                             if e_type == "Individual":
                                 e_sid_val = locals().get("e_sid", "")
                                 if only_digits(e_sid_val, 4):
-                                    new_base = build_base(e_year, e_country, e_state, e_day, e_treat, e_sid_val, "Pf" + "B" + e_mol_code + e_proc)
+                                    new_base = build_base(e_year, e_country, e_state, e_day, e_treat, e_sid_val, "Pf" + e_stype_val + e_mol_code + e_proc)
                                 else:
                                     err.append("Sample ID Individual : exactement 4 chiffres")
                             else:
                                 e_sid3_val  = locals().get("e_sid3", "")
                                 e_npool_val = locals().get("e_npool", "")
                                 if only_digits(e_sid3_val, 3) and only_digits(e_npool_val, 2):
-                                    new_base = build_base(e_year, e_country, e_state, e_day, e_treat, e_sid3_val + "P" + e_npool_val, "B" + e_mol_code + e_proc)
+                                    new_base = build_base(e_year, e_country, e_state, e_day, e_treat, e_sid3_val + "P" + e_npool_val, e_stype_val + e_mol_code + e_proc)
                                 else:
                                     err.append("Identifiants Pooled invalides")
                         if err:
@@ -2244,7 +2601,7 @@ elif active_page == "pipeline":
                             new_r1 = build_new_filename(new_base, n.get("orig_r1", n["r1"]))
                             new_r2 = build_new_filename(new_base, n.get("orig_r2", n["r2"]))
                             names[i].update({
-                                "base": new_base, "type": e_type,
+                                "base": new_base, "type": e_type, "stype": e_stype_val,
                                 "r1": new_r1, "r2": new_r2,
                                 "mol_markers": e_mol_sel, "mol_code": e_mol_code, "drug": e_drug,
                             })
@@ -2399,14 +2756,16 @@ elif active_page == "pipeline":
 
         zip_path = paths["zip"]
         if not zip_path.exists() and paths["output"].exists():
-            with zipfile.ZipFile(zip_path, "w") as zipf:
+            with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(paths["output"]):
                     for file in files:
                         full_path = os.path.join(root, file)
                         zipf.write(full_path, os.path.relpath(full_path, paths["output"]))
+            # flush OS buffers before reading
+            import time as _time; _time.sleep(0.2)
         if zip_path.exists():
-            with open(zip_path, "rb") as f:
-                st.download_button("💾 Télécharger les résultats (ZIP)", data=f, file_name=f"resultats_{run_id}.zip", mime="application/zip", width='stretch')
+            zip_bytes = zip_path.read_bytes()  # lit après fermeture complète du fichier
+            st.download_button("💾 Télécharger les résultats (ZIP)", data=zip_bytes, file_name=f"resultats_{run_id}.zip", mime="application/zip", width='stretch')
         else:
             st.warning("⚠️ Fichier ZIP introuvable.")
 
