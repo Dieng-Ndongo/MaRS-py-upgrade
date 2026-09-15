@@ -12,3 +12,5 @@ openpyxl==3.1.5
 
 # Génération PDF
 reportlab==5.0.1
+# Génération word
+python-docx==1.2.0
