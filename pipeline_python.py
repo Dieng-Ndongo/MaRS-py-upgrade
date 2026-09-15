@@ -12,18 +12,7 @@ import logging
 from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import PageTemplate, Frame
-from reportlab.lib.units import mm
 from functools import reduce
-from reportlab.platypus import Paragraph
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import Paragraph
 import json
 
 
@@ -2601,220 +2590,266 @@ def compute_haplotype_frequencies(
 # Generation du rapport final par site
 #======================================================================
 
+
+# ── Helpers python-docx ────────────────────────────────────────────────
+
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+
+def _docx_set_cell_bg(cell, hex_color: str):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), hex_color)
+    tcPr.append(shd)
+
+
+def _docx_set_borders(table):
+    for row in table.rows:
+        for cell in row.cells:
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            tcBorders = OxmlElement("w:tcBorders")
+            for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+                border = OxmlElement(f"w:{side}")
+                border.set(qn("w:val"), "single")
+                border.set(qn("w:sz"), "4")
+                border.set(qn("w:space"), "0")
+                border.set(qn("w:color"), "999999")
+                tcBorders.append(border)
+            tcPr.append(tcBorders)
+
+
+def _docx_setup(logo_path, title_text):
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin    = Cm(2.5)
+        section.bottom_margin = Cm(2.0)
+        section.left_margin   = Cm(2.0)
+        section.right_margin  = Cm(2.0)
+    # En-tête
+    header = doc.sections[0].header
+    header.is_linked_to_previous = False
+    h_para = header.paragraphs[0]
+    h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    if Path(str(logo_path)).exists():
+        h_para.add_run().add_picture(str(logo_path), height=Cm(1.2))
+    run_txt = h_para.add_run("   CIGASS — UCAD — Sénégal")
+    run_txt.bold = True
+    run_txt.font.size = Pt(11)
+    run_txt.font.color.rgb = RGBColor(0x1A, 0x2A, 0x4A)
+    # Pied de page
+    footer = doc.sections[0].footer
+    f_para = footer.paragraphs[0]
+    f_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run_f = f_para.add_run("Page ")
+    run_f.font.size = Pt(9)
+    fld = OxmlElement("w:fldChar"); fld.set(qn("w:fldCharType"), "begin")
+    run_f._r.append(fld)
+    instr = OxmlElement("w:instrText"); instr.text = "PAGE"
+    run_f._r.append(instr)
+    fld2 = OxmlElement("w:fldChar"); fld2.set(qn("w:fldCharType"), "end")
+    run_f._r.append(fld2)
+    # Titre
+    tp = doc.add_heading(title_text, level=0)
+    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph()
+    return doc
+
+
+def _docx_snp_table(doc, headers, rows, col_widths_cm):
+    table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.style = "Table Grid"
+    for j, h in enumerate(headers):
+        cell = table.cell(0, j)
+        cell.text = h
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = cell.paragraphs[0].runs[0]
+        run.bold = True; run.font.size = Pt(8)
+        _docx_set_cell_bg(cell, "ADD8E6")
+        cell.width = Cm(col_widths_cm[j])
+    for i, row_data in enumerate(rows):
+        for j, val in enumerate(row_data):
+            cell = table.cell(i + 1, j)
+            cell.text = str(val)
+            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cell.paragraphs[0].runs[0].font.size = Pt(8)
+            cell.width = Cm(col_widths_cm[j])
+            if i % 2 == 1:
+                _docx_set_cell_bg(cell, "F5F5F5")
+    _docx_set_borders(table)
+    return table
+
+
+def _docx_haplo_table(doc, table_data):
+    col_w = [8.0, 3.0, 3.0]
+    table = doc.add_table(rows=len(table_data), cols=3)
+    table.alignment = WD_TABLE_ALIGNMENT.LEFT
+    table.style = "Table Grid"
+    for j, h in enumerate(table_data[0]):
+        cell = table.cell(0, j)
+        cell.text = h
+        run = cell.paragraphs[0].runs[0]
+        run.bold = True; run.font.size = Pt(9)
+        _docx_set_cell_bg(cell, "D3D3D3")
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        cell.width = Cm(col_w[j])
+    for i, row_data in enumerate(table_data[1:], 1):
+        for j, val in enumerate(row_data):
+            cell = table.cell(i, j)
+            cell.text = str(val)
+            cell.paragraphs[0].runs[0].font.size = Pt(8)
+            cell.paragraphs[0].alignment = (
+                WD_ALIGN_PARAGRAPH.LEFT if j == 0 else WD_ALIGN_PARAGRAPH.CENTER
+            )
+            cell.width = Cm(col_w[j])
+    _docx_set_borders(table)
+    return table
+
+
+def _docx_summary_table(doc, summary_data):
+    n_cols = len(summary_data[0])
+    table = doc.add_table(rows=len(summary_data), cols=n_cols)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.style = "Table Grid"
+    metric_w = 6.0
+    other_w = max(1.5, (16.0 - metric_w) / max(n_cols - 1, 1))
+    for i, row_data in enumerate(summary_data):
+        for j, val in enumerate(row_data):
+            cell = table.cell(i, j)
+            cell.text = str(val)
+            cell.paragraphs[0].runs[0].font.size = Pt(8)
+            cell.paragraphs[0].alignment = (
+                WD_ALIGN_PARAGRAPH.LEFT if j == 0 else WD_ALIGN_PARAGRAPH.CENTER
+            )
+            cell.width = Cm(metric_w if j == 0 else other_w)
+            if i == 0:
+                _docx_set_cell_bg(cell, "ADD8E6")
+                cell.paragraphs[0].runs[0].bold = True
+    _docx_set_borders(table)
+    return table
+
+
+def _docx_compute_summary(df, sites):
+    def _weight(s):
+        m = re.search(r'P(\d+)', str(s)); return int(m.group(1)) if m else 1
+    def _pid(s):
+        sid = str(s).split("_")[0]; return sid[:6] + sid[8:]
+    def _day(s):
+        sid = str(s).split("_")[0]; return sid[6:8] if len(sid) >= 8 else None
+    metrics = [
+        "Number of patients (J0/JE pairs)", "Number of individual samples",
+        "Day 0 samples", "Day Failure samples",
+        "Number of Pools", "Number of pooled Day 0 samples",
+    ]
+    data = [["Metric"] + list(sites) + ["Total"]]
+    for metric in metrics:
+        row = [metric]; total = 0
+        for site in sites:
+            sdf = df[df["SITE"] == site].copy()
+            sdf["__W__"] = sdf["LSDB_Sequence_ID"].apply(_weight)
+            sdf["__PID__"] = sdf["LSDB_Sequence_ID"].apply(_pid)
+            sdf["__DAY__"] = sdf["LSDB_Sequence_ID"].apply(_day)
+            if metric == "Number of patients (J0/JE pairs)":
+                v = sum(1 for _, g in sdf.groupby("__PID__")
+                        if (g["__DAY__"] == "00").any() and (g["__DAY__"] != "00").any())
+            elif metric == "Number of individual samples":
+                v = (sdf["__W__"] == 1).sum()
+            elif metric == "Day 0 samples":
+                v = ((sdf["__DAY__"] == "00") & (sdf["__W__"] == 1)).sum()
+            elif metric == "Day Failure samples":
+                v = ((sdf["__DAY__"] != "00") & (sdf["__W__"] == 1)).sum()
+            elif metric == "Number of Pools":
+                v = (sdf["__W__"] > 1).sum()
+            elif metric == "Number of pooled Day 0 samples":
+                mask = (sdf["__DAY__"] == "00") & (sdf["__W__"] > 1)
+                v = sdf.loc[mask, "__W__"].sum()
+            else:
+                v = 0
+            row.append(int(v)); total += v
+        row.append(int(total)); data.append(row)
+    return data
+
+
+#======================================================================
+# Generation du rapport final par site — Word (.docx)
+#======================================================================
+
 def generate_simple_final_report_by_site(
     reportable_file=BASE_DIR / "output" / "Dataviz_Reportable_snps" / "Reportable_snps_DMS_EPI_report.csv",
     combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
     vaf_file=BASE_DIR / "output" / "Sample_VAF_merge" / "Sample_VAF_merge.csv",
     out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
-    pdf_name="Simple_final_Report.pdf"
+    docx_name="Simple_final_Report.docx"
 ):
-
-    # --- Créer les dossiers ---
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     img_dir = out_dir / "tmp_images"
     img_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = out_dir / pdf_name
+    docx_path = out_dir / docx_name
 
-    # --- Lire les fichiers ---
-    df = pd.read_csv(reportable_file, dtype=str).fillna("")
-    dh = pd.read_csv(combined_hap_file, dtype=str).fillna("")
-    df_vaf = pd.read_csv(vaf_file, dtype=str).fillna("")
+    df     = pd.read_csv(reportable_file,   dtype=str).fillna("")
+    dh     = pd.read_csv(combined_hap_file, dtype=str).fillna("")
+    df_vaf = pd.read_csv(vaf_file,          dtype=str).fillna("")
 
-    # --- Extraire le site depuis le nom d'échantillon ---
-    df["SITE"] = df["LSDB_Sequence_ID"].str[4:6]
-    dh["SITE"] = dh["Sample"].str[4:6]
+    df["SITE"]     = df["LSDB_Sequence_ID"].str[4:6]
+    dh["SITE"]     = dh["Sample"].str[4:6]
     df_vaf["SITE"] = df_vaf["Sample_name"].str[4:6]
-    sites = df["SITE"].unique()
+    sites          = df["SITE"].unique()
 
-    # --- Fonctions utilitaires ---
-    def get_sample_weight(sample_name):
-        m = re.search(r'P(\d+)', str(sample_name))
-        return int(m.group(1)) if m else 1
+    def get_sample_weight(s):
+        m = re.search(r'P(\d+)', str(s)); return int(m.group(1)) if m else 1
 
-    def load_svaf(sample_name, snp, sample_vaf_dir="output/Sample_VAF"):
-        pattern = f"{sample_name}*_SVAF.csv"
-        files = list(Path(sample_vaf_dir).glob(pattern))
-        if not files:
-            return 0.0
-        try:
-            df_svaf = pd.read_csv(files[0])
-        except Exception:
-            return 0.0
-        if "AA_change" not in df_svaf.columns or "AVG_VAF" not in df_svaf.columns:
-            return 0.0
-        row = df_svaf.loc[df_svaf["AA_change"] == snp]
-        if row.empty:
-            return 0.0
-        try:
-            return float(row.iloc[0]["AVG_VAF"])
-        except Exception:
-            return 0.0
+    logo_path = out_dir.parent.parent.parent / "images" / "logoCIGASS.png"
+    doc = _docx_setup(logo_path, "Final Report SNP & Haplotype")
 
-    # --- Préparer le PDF ---
-    styles = getSampleStyleSheet()
-    story = []
+    doc.add_heading("Methodology", level=2)
+    p = doc.add_paragraph(
+        "This report presents a synthesis of the molecular analysis of resistance markers in "
+        "Plasmodium falciparum based on sequencing data generated across multiple study sites. "
+        "It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each "
+        "study site, as well as graphical representations. Variant allele frequencies (VAF) were "
+        "calculated from variant calling results by estimating the proportion of sequencing reads "
+        "supporting the alternative allele relative to the total read depth. For each mutation, an "
+        "average allele frequency (AVG_VAF) was computed from different variant-calling tools. "
+        "To ensure comparability between individual and pooled samples, a weighting system based on "
+        "pool size was applied. The final weighted allele frequency was calculated as: "
+        "VAF_final (%) = [\u03a3(AVG_VAF) / N] \u00d7 100. In this report, mixed infections (MIX) "
+        "were retained in their specific category for prevalence calculations. Haplotype analysis "
+        "was performed by combining validated SNPs within each resistance-associated gene."
+    )
+    p.runs[0].font.size = Pt(10)
+    doc.add_paragraph()
 
-    # Logo
-    logo_path = Path(out_dir).parent.parent.parent / "images" / "logoCIGASS.png"
-    if logo_path.exists():
-        story.append(Image(str(logo_path), width=370, height=120))
-        story.append(Spacer(1, 10))
+    doc.add_heading("Global Summary by Site", level=2)
+    _docx_summary_table(doc, _docx_compute_summary(df, sites))
+    doc.add_paragraph()
 
-    story.append(Paragraph("<b>Final Report SNP & Haplotype</b>", styles["Title"]))
-    story.append(Spacer(1, 14))
-
-
-    # --- Methodology section ---
-    methodology_text = """
-    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools.To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF) / N ] × 100. In this report, mixed infections (MIX) were retained in their specific category for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
-        """
-
-    story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(methodology_text.replace("\n", "<br/>"), styles["Normal"]))
-    story.append(Spacer(1, 14))
-
-    # ======================================================
-    # Résumé global au début du rapport (corrigé pour J0/JE)
-    # ======================================================
-
-    def get_patient_id(sample_id):
-        """
-        Retourne l'ID principal du patient en ignorant le jour (day)
-        Exemple : "23SNKD00I0009PfB4721" et "23SNKD28I0009PfB4721" -> même patient_id
-        """
-        sid = str(sample_id).split("_")[0]  # tout avant "_"
-        # retirer le jour (positions 6-7)
-        return sid[:6] + sid[8:]
-
-    def get_day(sample_id):
-        
-        #Day extrait de l'ID principal (positions 6-7)
-        
-        sid = str(sample_id).split("_")[0]
-        return sid[6:8] if len(sid) >= 8 else None
-
-    metrics = [
-    "Number of patients (J0/JE pairs)",
-    "Number of individual samples",     # NON poolés uniquement
-    "Day 0 samples",
-    "Day Failure samples",              # NOUVELLE LIGNE
-    "Number of Pools",
-    "Number of pooled Day 0 samples"
-    ]
-
-    summary_data = [["Metric"] + list(sites) + ["Total"]]
-
-    for metric in metrics:
-        row = [metric]
-        total_value = 0
-
-        for site in sites:
-            site_df = df[df["SITE"] == site].copy()
-            site_df["__WEIGHT__"] = site_df["LSDB_Sequence_ID"].apply(get_sample_weight)
-            site_df["PATIENT_ID"] = site_df["LSDB_Sequence_ID"].apply(get_patient_id)
-            site_df["DAY"] = site_df["LSDB_Sequence_ID"].apply(get_day)
-
-            if metric == "Number of patients (J0/JE pairs)":
-                n_patients = 0
-                for pid, g in site_df.groupby("PATIENT_ID"):
-                    has_j0 = (g["DAY"] == "00").any()
-                    has_je = (g["DAY"] != "00").any()
-                    if has_j0 and has_je:
-                        n_patients += 1
-                value = n_patients
-
-            elif metric == "Number of individual samples":
-                value = site_df[site_df["__WEIGHT__"] == 1].shape[0]
-
-            elif metric == "Day 0 samples":
-                value = site_df[
-                    (site_df["DAY"] == "00") &
-                    (site_df["__WEIGHT__"] == 1)
-                ].shape[0]
-
-            elif metric == "Day Failure samples":
-                value = site_df[
-                    (site_df["DAY"] != "00") &
-                    (site_df["__WEIGHT__"] == 1)
-                ].shape[0]
-
-            elif metric == "Number of Pools":
-                value = (site_df["__WEIGHT__"] > 1).sum()
-
-            elif metric == "Number of pooled Day 0 samples":
-                mask = (site_df["DAY"] == "00") & (site_df["__WEIGHT__"] > 1)
-                value = site_df.loc[mask, "__WEIGHT__"].sum()
-                
-            else:
-                value = 0
-
-            row.append(int(value))
-            total_value += value
-
-        row.append(int(total_value))
-        summary_data.append(row)
-
-    
-    # ============================
-    # Affichage dans le PDF
-    # ============================
-    
-    """
-    story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    """
-
-    # --- Calcul dynamique des largeurs ---
-    page_width = A4[0] - 2*30  # largeur A4 moins marges
-    n_cols = len(sites) + 2    # "Metric" + sites + "Total"
-
-    metric_col_width = page_width * 0.25            # 25% pour la colonne "Metric"
-    other_col_width = (page_width - metric_col_width) / (n_cols - 1)
-    col_widths = [metric_col_width] + [other_col_width]*(n_cols - 1)
-
-    # --- Création du tableau ---
-    table_summary = Table(summary_data, colWidths=col_widths)
-
-    # --- Style du tableau ---
-    table_style = TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("FONTSIZE", (0,0), (-1,-1), 8),      # taille police réduite
-        ("ROTATE", (1,0), (-2,0), 90),        # rotation des en-têtes sites
-        ("ALIGN", (0,0), (0,-1), "LEFT")      # colonne Metric alignée à gauche
-    ])
-
-    table_summary.setStyle(table_style)
-
-    # --- Ajout au PDF ---
-    story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    story.append(table_summary)
-    story.append(Spacer(1,12))
-
-        
-
-    
-    # --- Boucle sur les sites ---
     for site in sites:
-        story.append(Paragraph(f"<b>Site : {site}</b>", styles["Heading1"]))
-        story.append(Spacer(1, 10))
+        doc.add_page_break()
+        doc.add_heading(f"Site : {site}", level=1)
 
-        site_df = df[df["SITE"] == site].copy()
-        site_dh = dh[dh["SITE"] == site].copy()
+        site_df  = df[df["SITE"] == site].copy()
+        site_dh  = dh[dh["SITE"] == site].copy()
         site_vaf = df_vaf[df_vaf["SITE"] == site].copy()
 
         site_df["__WEIGHT__"] = site_df["LSDB_Sequence_ID"].apply(get_sample_weight)
         total_samples = site_df["__WEIGHT__"].sum()
-        story.append(Paragraph(f"Total samples : <b>{total_samples}</b>", styles["Normal"]))
-        story.append(Spacer(1, 10))
+        p = doc.add_paragraph()
+        r = p.add_run(f"Total samples : {total_samples}")
+        r.bold = True; r.font.size = Pt(10)
+        doc.add_paragraph()
 
-        # --- Identifier les blocs de gènes ---
-        gene_blocks = {}
+        # Identifier les blocs de gènes
+        gene_blocks  = {}
         current_gene = None
         for col in site_df.columns:
             if ": # Drug resistant mutations" in col:
@@ -2825,287 +2860,149 @@ def generate_simple_final_report_by_site(
         for g in list(gene_blocks.keys()):
             cols = [c for c in gene_blocks[g] if re.search(r"\d", c)]
             gene_blocks[g] = cols
-            if len(cols) == 0:
+            if not cols:
                 gene_blocks.pop(g, None)
         gene_blocks.pop("CytoB", None)
 
-        # --- Définir l'ordre des sections ---
         order = []
         if "DHFR" in gene_blocks or "DHPS" in gene_blocks:
-            order.append(("DHFR and DHPS", ["DHFR","DHPS"]))
-        for g in ["CRT","MDR"]:
+            order.append(("DHFR and DHPS", ["DHFR", "DHPS"]))
+        for g in ["CRT", "MDR"]:
             if g in gene_blocks:
                 order.append((g, [g]))
         for g in gene_blocks:
-            if g not in ("DHFR","DHPS","CRT","MDR","CytoB"):
-                order.append((g,[g]))
+            if g not in ("DHFR", "DHPS", "CRT", "MDR", "CytoB"):
+                order.append((g, [g]))
 
-        # --- Boucle sur les sections de gènes ---
         for section_name, genes_in_section in order:
-            story.append(Paragraph(f"<b>{section_name}</b>", styles["Heading2"]))
-            story.append(Spacer(1, 8))
-
-            processed_haplo_sections = set()  # pour ne pas répéter DHFR/DHPS
+            doc.add_heading(section_name, level=2)
+            processed_haplo_sections = set()
 
             for gene in genes_in_section:
                 snps = gene_blocks.get(gene, [])
                 if not snps:
                     continue
-                
-                    
-                # --- Tableau SNPs pour le gène ---
 
-
-                # --- Titre du gène avant le tableau SNP ---
-                story.append(Spacer(1, 6))
-                story.append(Paragraph(f"<b>{gene}</b>", styles["Heading3"]))
-                story.append(Spacer(1, 4))
-
-                # --- Styles pour le tableau ---
-                style_cell = ParagraphStyle(name='cell', alignment=1, fontSize=8)  # centré, petite police
-                style_header = ParagraphStyle(name='header', alignment=1, fontSize=9, leading=10)
-
-                # --- Préparer les données avec wrapping ---
-                table_data_wrapped = []
-                # Ajouter l'entête avec style_header
-                table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP", "N of sample", "Wild-type (N, %)", 
-                                                                                        "Mutant (N, %)", "%VAF_MT", 
-                                                                                        "Mixte (N, %)", "%VAF_MIX"]])
-
+                doc.add_heading(gene, level=3)
+                headers = ["SNP", "N of sample", "Wild-type (N, %)",
+                           "Mutant (N, %)", "%VAF_MT", "Mixte (N, %)", "%VAF_MIX"]
+                col_widths_cm = [2.5, 1.8, 2.8, 2.8, 1.8, 2.8, 1.8]
+                rows = []
                 snp_values_for_plot = []
 
                 for snp in snps:
                     df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
-
-                    # Masques
                     mask_wt    = df_snp[snp] == "WT"
                     mask_mut   = df_snp[snp] == "MT"
                     mask_mix   = df_snp[snp] == "MIX"
                     mask_valid = df_snp[snp].isin(["WT", "MT", "MIX"])
-
-                    # Total pondéré
                     n_total = df_snp.loc[mask_valid, "__WEIGHT__"].sum()
-
-                    # Comptage pondéré
-                    n_wt  = df_snp.loc[mask_wt,  "__WEIGHT__"].sum()
-                    n_mut = df_snp.loc[mask_mut, "__WEIGHT__"].sum()
-                    n_mix = df_snp.loc[mask_mix, "__WEIGHT__"].sum()
-
-                    # Pourcentages
+                    n_wt    = df_snp.loc[mask_wt,   "__WEIGHT__"].sum()
+                    n_mut   = df_snp.loc[mask_mut,  "__WEIGHT__"].sum()
+                    n_mix   = df_snp.loc[mask_mix,  "__WEIGHT__"].sum()
                     pct_wt  = (n_wt  / n_total * 100) if n_total > 0 else 0
                     pct_mut = (n_mut / n_total * 100) if n_total > 0 else 0
                     pct_mix = (n_mix / n_total * 100) if n_total > 0 else 0
-
-                    # Récupérer les préfixes des échantillons MT et MIX
                     samples_mut = df_snp.loc[mask_mut, "LSDB_Sequence_ID"].str.split("_S").str[0].tolist()
                     samples_mix = df_snp.loc[mask_mix, "LSDB_Sequence_ID"].str.split("_S").str[0].tolist()
-
-                    # Filtrer site_vaf pour ce SNP avec correspondance sur le préfixe
                     snp_vaf = site_vaf[site_vaf["AA_change"] == snp].copy()
                     snp_vaf["__VAF__"]    = pd.to_numeric(snp_vaf["AVG_VAF"], errors="coerce").fillna(0)
                     snp_vaf["__PREFIX__"] = snp_vaf["Sample_name"].str.split("_S").str[0]
-
                     vaf_mut_rows = snp_vaf[snp_vaf["__PREFIX__"].isin(samples_mut)]
                     vaf_mix_rows = snp_vaf[snp_vaf["__PREFIX__"].isin(samples_mix)]
-
-                    # Moyenne simple séparée pour MT et MIX
                     vaf_mut = (vaf_mut_rows["__VAF__"].sum() / len(vaf_mut_rows)) * 100 if len(vaf_mut_rows) > 0 else 0.0
                     vaf_mix = (vaf_mix_rows["__VAF__"].sum() / len(vaf_mix_rows)) * 100 if len(vaf_mix_rows) > 0 else 0.0
-
-                    # Ajouter la ligne avec style_cell
-                    table_data_wrapped.append([
-                        Paragraph(str(snp), style_cell),
-                        Paragraph(str(int(n_total)), style_cell),
-                        Paragraph(f"({int(n_wt)}, {pct_wt:.1f}%)", style_cell),
-                        Paragraph(f"({int(n_mut)}, {pct_mut:.1f}%)", style_cell),
-                        Paragraph(f"{vaf_mut:.1f}%", style_cell),
-                        Paragraph(f"({int(n_mix)}, {pct_mix:.1f}%)", style_cell),
-                        Paragraph(f"{vaf_mix:.1f}%", style_cell)
-                    ])
-
-                    # Pour le graphe
+                    rows.append([snp, int(n_total),
+                                 f"({int(n_wt)}, {pct_wt:.1f}%)",
+                                 f"({int(n_mut)}, {pct_mut:.1f}%)", f"{vaf_mut:.1f}%",
+                                 f"({int(n_mix)}, {pct_mix:.1f}%)", f"{vaf_mix:.1f}%"])
                     snp_values_for_plot.append((snp, int(n_wt), int(n_mut), int(n_mix)))
 
-                # --- Créer le tableau ---
-                col_widths = [50,50,70,70,50,70,50]  # ajusté pour paysage A4
-                table = Table(table_data_wrapped, colWidths=col_widths, repeatRows=1)
-                table.setStyle(TableStyle([
-                    ("BACKGROUND",(0,0),(-1,0),colors.lightblue),
-                    ("GRID",(0,0),(-1,-1),0.4,colors.grey),
-                    ("ALIGN",(0,0),(-1,-1),"CENTER"),
-                ]))
+                _docx_snp_table(doc, headers, rows, col_widths_cm)
+                doc.add_paragraph()
 
-                story.append(table)
-                story.append(Spacer(1,6))
-
-                # --- Graphe SNP avec WT / Mutant / Mix ---
                 if snp_values_for_plot:
                     img_path = img_dir / f"{site}_{gene}_SNP.png"
-                    plt.figure(figsize=(6.5,3.8))
-
                     labels = [x[0] for x in snp_values_for_plot]
-                    wt_counts  = [x[1] for x in snp_values_for_plot]
-                    mut_counts = [x[2] for x in snp_values_for_plot]
-                    mix_counts = [x[3] for x in snp_values_for_plot]
-
-                    width = 0.25
-                    x = range(len(labels))
-
-                    plt.bar(x, wt_counts, width, label="Wild-type")
-                    plt.bar([i + width for i in x], mut_counts, width, label="Mutant")
-                    plt.bar([i + 2*width for i in x], mix_counts, width, label="Mix")
-
+                    wt_c = [x[1] for x in snp_values_for_plot]
+                    mt_c = [x[2] for x in snp_values_for_plot]
+                    mx_c = [x[3] for x in snp_values_for_plot]
+                    width = 0.25; x = range(len(labels))
+                    plt.figure(figsize=(6.5, 3.8))
+                    plt.bar(x, wt_c, width, label="Wild-type")
+                    plt.bar([i + width for i in x], mt_c, width, label="Mutant")
+                    plt.bar([i + 2*width for i in x], mx_c, width, label="Mix")
                     plt.xticks([i + width for i in x], labels, rotation=45, ha="right")
                     plt.ylabel("Nombre d'échantillons")
                     plt.title(f"{gene} SNP distribution — Site {site}")
-                    plt.legend()
-                    plt.tight_layout()
+                    plt.legend(); plt.tight_layout()
+                    plt.savefig(img_path, dpi=150); plt.close()
+                    doc.add_picture(str(img_path), width=Cm(15))
+                    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_paragraph()
 
-                    plt.savefig(img_path, dpi=150)
-                    plt.close()
-
-                    story.append(Image(str(img_path), width=440, height=220))
-                    story.append(Spacer(1,12))
-
-
-                    
-                    
-            # --- Haplotypes pour le bloc de gènes ---
-            haplo_col = section_name  # "DHFR and DHPS" ou "CRT", etc
+            # Haplotypes
+            haplo_col = section_name
             if haplo_col in processed_haplo_sections:
                 continue
             processed_haplo_sections.add(haplo_col)
 
             if haplo_col not in site_dh.columns:
-                story.append(Paragraph(f"Aucun haplotype valide trouvé pour {haplo_col}.", styles["Normal"]))
-                story.append(Spacer(1,6))
+                doc.add_paragraph(f"Aucun haplotype valide trouvé pour {haplo_col}.")
                 continue
 
-            df_h_valid = site_dh.copy()
- 
-            # 1. Exclure les haplotypes non valides (Null, nul*, insensible casse)
-            df_h_valid = df_h_valid[
-                ~df_h_valid[haplo_col].astype(str).str.strip().str.lower().str.startswith("nul")
-            ]
+            df_h_valid = site_dh[
+                ~site_dh[haplo_col].astype(str).str.strip().str.lower().str.startswith("nul")
+            ].copy()
             if df_h_valid.empty:
-                story.append(Paragraph(
-                    f"Aucun haplotype valide pour {haplo_col} — site {site}.",
-                    styles["Normal"]))
-                story.append(Spacer(1, 6))
+                doc.add_paragraph(f"Aucun haplotype valide pour {haplo_col} — site {site}.")
                 continue
- 
-            # 2. Calculer le poids pour identifier les poolés
+
             df_h_valid["__WEIGHT__"] = df_h_valid["Sample"].apply(get_sample_weight)
- 
-            # 3. Garder UNIQUEMENT les échantillons individuels (weight == 1)
-            n_total_site   = len(df_h_valid)
-            df_h_indiv     = df_h_valid[df_h_valid["__WEIGHT__"] == 1].copy()
-            n_indiv        = len(df_h_indiv)
+            n_total_site    = len(df_h_valid)
+            df_h_indiv      = df_h_valid[df_h_valid["__WEIGHT__"] == 1].copy()
+            n_indiv         = len(df_h_indiv)
             n_pool_excluded = n_total_site - n_indiv
- 
+
             if df_h_indiv.empty:
-                story.append(Paragraph(
-                    f"Aucun échantillon individuel pour {haplo_col} — site {site}.",
-                    styles["Normal"]))
-                story.append(Spacer(1, 6))
+                doc.add_paragraph(f"Aucun échantillon individuel pour {haplo_col} — site {site}.")
                 continue
- 
-            # 4. Calcul des fréquences (N simple, pas pondéré — individuel uniquement)
+
             freq = df_h_indiv[haplo_col].value_counts().reset_index()
             freq.columns = ["Haplotype", "Count"]
             total_h = freq["Count"].sum()
             freq["Percent"] = (freq["Count"] / total_h * 100).round(1)
- 
-            # 5. Affichage dans le PDF
-            story.append(Paragraph(f"<b>Haplotypes {haplo_col}</b>", styles["Heading3"]))
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(
-                f"<b>Individual samples (N) : {n_indiv}</b> "
-                f"<i>(Pools excluded : {n_pool_excluded})</i>",
-                styles["Normal"]))
-            story.append(Spacer(1, 4))
-            story.append(Paragraph(
-                f"<b>Total valid haplotypes ({haplo_col}) : {total_h}</b>",
-                styles["Normal"]))
-            story.append(Spacer(1, 6))
- 
-            table_data = [["Haplotype", "N (individual)", "Percent (%)"]]
-            for _, r in freq.iterrows():
-                table_data.append([r["Haplotype"], int(r["Count"]), f"{r['Percent']}%"])
 
-            t = Table(table_data,colWidths=[220,80,80])
-            t.setStyle(TableStyle([
-                ("BACKGROUND",(0,0),(-1,0),colors.lightgrey),
-                ("GRID",(0,0),(-1,-1),0.4,colors.grey),
-                ("ALIGN",(1,1),(-1,-1),"CENTER")
-            ]))
-            story.append(t)
-            story.append(Spacer(1,6))
+            doc.add_heading(f"Haplotypes {haplo_col}", level=3)
+            p = doc.add_paragraph()
+            r = p.add_run(f"Individual samples (N) : {n_indiv}")
+            r.bold = True; r.font.size = Pt(10)
+            p.add_run(f"  (Pools excluded : {n_pool_excluded})").italic = True
+            p2 = doc.add_paragraph()
+            r2 = p2.add_run(f"Total valid haplotypes ({haplo_col}) : {total_h}")
+            r2.bold = True; r2.font.size = Pt(10)
 
-            # Graphe haplotype
+            td = [["Haplotype", "N (individual)", "Percent (%)"]]
+            for _, row in freq.iterrows():
+                td.append([row["Haplotype"], int(row["Count"]), f"{row['Percent']}%"])
+            _docx_haplo_table(doc, td)
+            doc.add_paragraph()
+
             img_path = img_dir / f"{site}_{haplo_col}_haplo.png"
-            plt.figure(figsize=(6,3.5))
-            plt.bar(freq["Haplotype"].astype(str),freq["Count"])
-            plt.xticks(rotation=45,ha="right")
+            plt.figure(figsize=(6, 3.5))
+            plt.bar(freq["Haplotype"].astype(str), freq["Count"])
+            plt.xticks(rotation=45, ha="right")
             plt.title(f"{haplo_col} haplotype distribution — Site {site}")
             plt.tight_layout()
-            plt.savefig(img_path,dpi=150)
-            plt.close()
-            story.append(Image(str(img_path),width=440,height=220))
-            story.append(Spacer(1,12))
+            plt.savefig(img_path, dpi=150); plt.close()
+            doc.add_picture(str(img_path), width=Cm(15))
+            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
 
+        doc.add_paragraph()
 
-        story.append(Spacer(1,18))
-
-    
-    # --- Header & Footer (corrigé) ---
-        def draw_header(canvas, doc, logo_path):
-            canvas.saveState()
-            # Bandeau positionné juste au-dessus de la zone de contenu, dans la page
-            header_y = doc.pagesize[1] - doc.topMargin + 10
-            canvas.setFillColor(colors.lightblue)
-            canvas.rect(0, header_y, doc.pagesize[0], 30, fill=1, stroke=0)
-            if os.path.exists(logo_path):
-                canvas.drawImage(logo_path, x=doc.leftMargin, y=header_y + 5,
-                                  width=55, height=20, preserveAspectRatio=True, mask='auto')
-            canvas.setFillColor(colors.black)
-            canvas.setFont("Helvetica-Bold", 12)
-            canvas.drawString(doc.leftMargin + 60, header_y + 10, "CIGASS — UCAD — Sénégal")
-            canvas.restoreState()
-    
-        def draw_footer(canvas, doc, logo_path):
-            canvas.saveState()
-            footer_y = doc.bottomMargin - 20
-            if os.path.exists(logo_path):
-                canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y,
-                                  width=40, height=15, preserveAspectRatio=True, mask='auto')
-            canvas.setFont("Helvetica", 10)
-            canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, footer_y + 3, f"Page {doc.page}")
-            canvas.restoreState()
-    
-        def decorate_page(canvas, doc):
-            draw_header(canvas, doc, str(logo_path))
-            draw_footer(canvas, doc, str(logo_path))
-    
-        # --- Générer le PDF avec marges explicites ---
-        doc = SimpleDocTemplate(
-            str(pdf_path),
-            pagesize=A4,
-            topMargin=60,
-            bottomMargin=50,
-            leftMargin=30,
-            rightMargin=30
-        )
-        frame = Frame(
-            doc.leftMargin,
-            doc.bottomMargin,
-            doc.width,
-            doc.height,
-            id="normal"
-        )
-        page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
-        doc.addPageTemplates([page_template])
-        doc.build(story)
+    doc.save(str(docx_path))
+    print(f"[OK] Rapport Word généré : {docx_path}")
 
 
 def generate_simple_final_report_by_site_MT_MIX(
@@ -3113,204 +3010,67 @@ def generate_simple_final_report_by_site_MT_MIX(
     combined_hap_file=BASE_DIR / "output" / "haplotypes" / "Combined_Haplotypes.csv",
     vaf_file=BASE_DIR / "output" / "Sample_VAF_merge" / "Sample_VAF_merge.csv",
     out_dir=BASE_DIR / "output" / "haplotypes" / "Report",
-    pdf_name="Simple_Final_Report_MT_MIX.pdf"
+    docx_name="Simple_Final_Report_MT_MIX.docx"
 ):
-
-    # --- Créer les dossiers ---
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     img_dir = out_dir / "tmp_images"
     img_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = out_dir / pdf_name
+    docx_path = out_dir / docx_name
 
-    # --- Lire les fichiers ---
-    df = pd.read_csv(reportable_file, dtype=str).fillna("")
-    dh = pd.read_csv(combined_hap_file, dtype=str).fillna("")
-    df_vaf = pd.read_csv(vaf_file, dtype=str).fillna("")
+    df     = pd.read_csv(reportable_file,   dtype=str).fillna("")
+    dh     = pd.read_csv(combined_hap_file, dtype=str).fillna("")
+    df_vaf = pd.read_csv(vaf_file,          dtype=str).fillna("")
 
-    # --- Extraire le site depuis le nom d'échantillon ---
-    df["SITE"] = df["LSDB_Sequence_ID"].str[4:6]
-    dh["SITE"] = dh["Sample"].str[4:6]
+    df["SITE"]     = df["LSDB_Sequence_ID"].str[4:6]
+    dh["SITE"]     = dh["Sample"].str[4:6]
     df_vaf["SITE"] = df_vaf["Sample_name"].str[4:6]
-    sites = df["SITE"].unique()
+    sites          = df["SITE"].unique()
 
-    # --- Fonctions utilitaires ---
-    def get_sample_weight(sample_name):
-        m = re.search(r'P(\d+)', str(sample_name))
-        return int(m.group(1)) if m else 1
+    def get_sample_weight(s):
+        m = re.search(r'P(\d+)', str(s)); return int(m.group(1)) if m else 1
 
-    def load_svaf(sample_name, snp, sample_vaf_dir="output/Sample_VAF"):
-        pattern = f"{sample_name}*_SVAF.csv"
-        files = list(Path(sample_vaf_dir).glob(pattern))
-        if not files:
-            return 0.0
-        try:
-            df_svaf = pd.read_csv(files[0])
-        except Exception:
-            return 0.0
-        if "AA_change" not in df_svaf.columns or "AVG_VAF" not in df_svaf.columns:
-            return 0.0
-        row = df_svaf.loc[df_svaf["AA_change"] == snp]
-        if row.empty:
-            return 0.0
-        try:
-            return float(row.iloc[0]["AVG_VAF"])
-        except Exception:
-            return 0.0
+    logo_path = out_dir.parent.parent.parent / "images" / "logoCIGASS.png"
+    doc = _docx_setup(logo_path, "Final Report SNP & Haplotype (MIX as Mutant)")
 
-    # --- Préparer le PDF ---
-    styles = getSampleStyleSheet()
-    story = []
+    doc.add_heading("Methodology", level=2)
+    p = doc.add_paragraph(
+        "This report presents a synthesis of the molecular analysis of resistance markers in "
+        "Plasmodium falciparum based on sequencing data generated across multiple study sites. "
+        "It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each "
+        "study site, as well as graphical representations. Variant allele frequencies (VAF) were "
+        "calculated from variant calling results by estimating the proportion of sequencing reads "
+        "supporting the alternative allele relative to the total read depth. For each mutation, an "
+        "average allele frequency (AVG_VAF) was computed from different variant-calling tools. "
+        "To ensure comparability between individual and pooled samples, a weighting system based on "
+        "pool size was applied. The final weighted allele frequency was calculated as: "
+        "VAF_final (%) = [\u03a3(AVG_VAF) / N] \u00d7 100. In this report, mixed infections (MIX) "
+        "were considered as carrying the mutant allele for prevalence calculations. Haplotype "
+        "analysis was performed by combining validated SNPs within each resistance-associated gene."
+    )
+    p.runs[0].font.size = Pt(10)
+    doc.add_paragraph()
 
-    # Logo
-    logo_path = Path(out_dir).parent.parent.parent / "images" / "logoCIGASS.png"
-    if logo_path.exists():
-        story.append(Image(str(logo_path), width=370, height=120))
-        story.append(Spacer(1, 10))
+    doc.add_heading("Global Summary by Site", level=2)
+    _docx_summary_table(doc, _docx_compute_summary(df, sites))
+    doc.add_paragraph()
 
-    story.append(Paragraph("<b>Final Report SNP & Haplotype (MIX as Mutant)</b>", styles["Title"]))
-    story.append(Spacer(1, 14))
-
-
-
-    # --- Methodology section ---
-    methodology_text = """
-    This report presents a synthesis of the molecular analysis of resistance markers in <i>Plasmodium falciparum</i> based on sequencing data generated across multiple study sites. It integrates SNP frequencies, weighted VAF values, and haplotype distributions for each study site, as well as graphical representations. Variant allele frequencies (VAF) were calculated from variant calling results by estimating the proportion of sequencing reads supporting the alternative allele relative to the total read depth. For each mutation, an average allele frequency (AVG_VAF) was computed from different variant-calling tools. To ensure comparability between individual and pooled samples, a weighting system based on pool size was applied. The final weighted allele frequency was calculated as: VAF_final (%) = [ Σ(AVG_VAF) / N ] × 100. In this report, mixed infections (MIX) were considered as carrying the mutant allele for prevalence calculations. Haplotype analysis was performed by combining validated SNPs within each resistance-associated gene.
-    """
-
-    story.append(Paragraph("<b>Methodology</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(methodology_text.replace("\n", "<br/>"), styles["Normal"]))
-    story.append(Spacer(1, 14))
-
-
-    # ======================================================
-    # Résumé global au début du rapport (J0/JE)
-    # ======================================================
-
-    def get_patient_id(sample_id):
-        sid = str(sample_id).split("_")[0]
-        return sid[:6] + sid[8:]  # retirer le day pour ID patient
-
-    def get_day(sample_id):
-        sid = str(sample_id).split("_")[0]
-        return sid[6:8] if len(sid) >= 8 else None
-    
-    metrics = [
-    "Number of patients (J0/JE pairs)",
-    "Number of individual samples",     # NON poolés uniquement
-    "Day 0 samples",
-    "Day Failure samples",              # NOUVELLE LIGNE
-    "Number of Pools",
-    "Number of pooled Day 0 samples"
-    ]
-
-
-    summary_data = [["Metric"] + list(sites) + ["Total"]]
-
-    for metric in metrics:
-        row = [metric]
-        total_value = 0
-
-        for site in sites:
-            site_df = df[df["SITE"] == site].copy()
-            site_df["__WEIGHT__"] = site_df["LSDB_Sequence_ID"].apply(get_sample_weight)
-            site_df["PATIENT_ID"] = site_df["LSDB_Sequence_ID"].apply(get_patient_id)
-            site_df["DAY"] = site_df["LSDB_Sequence_ID"].apply(get_day)
-
-            if metric == "Number of patients (J0/JE pairs)":
-                n_patients = 0
-                for pid, g in site_df.groupby("PATIENT_ID"):
-                    has_j0 = (g["DAY"] == "00").any()
-                    has_je = (g["DAY"] != "00").any()
-                    if has_j0 and has_je:
-                        n_patients += 1
-                value = n_patients
-
-            elif metric == "Number of individual samples":
-                value = site_df[site_df["__WEIGHT__"] == 1].shape[0]
-
-            elif metric == "Day 0 samples":
-                value = site_df[
-                    (site_df["DAY"] == "00") &
-                    (site_df["__WEIGHT__"] == 1)
-                ].shape[0]
-
-            elif metric == "Day Failure samples":
-                value = site_df[
-                    (site_df["DAY"] != "00") &
-                    (site_df["__WEIGHT__"] == 1)
-                ].shape[0]
-
-            elif metric == "Number of Pools":
-                value = (site_df["__WEIGHT__"] > 1).sum()
-
-            elif metric == "Number of pooled Day 0 samples":
-                mask = (site_df["DAY"] == "00") & (site_df["__WEIGHT__"] > 1)
-                value = site_df.loc[mask, "__WEIGHT__"].sum()
-
-            else:
-                value = 0
-
-            row.append(int(value))
-            total_value += value
-
-        row.append(int(total_value))
-        summary_data.append(row)
-
-    """
-    # --- Affichage dans le PDF ---
-    story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    """
-    
-    # --- Calcul dynamique des largeurs ---
-    page_width = A4[0] - 2*30  # largeur A4 moins marges
-    n_cols = len(sites) + 2    # "Metric" + sites + "Total"
-
-    metric_col_width = page_width * 0.25            # 25% pour la colonne "Metric"
-    other_col_width = (page_width - metric_col_width) / (n_cols - 1)
-    col_widths = [metric_col_width] + [other_col_width]*(n_cols - 1)
-
-    # --- Création du tableau ---
-    table_summary = Table(summary_data, colWidths=col_widths)
-
-    # --- Style du tableau ---
-    table_style = TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("FONTSIZE", (0,0), (-1,-1), 8),      # taille police réduite
-        ("ROTATE", (1,0), (-2,0), 90),        # rotation des en-têtes sites
-        ("ALIGN", (0,0), (0,-1), "LEFT")      # colonne Metric alignée à gauche
-    ])
-
-    table_summary.setStyle(table_style)
-
-    # --- Ajout au PDF ---
-    story.append(Paragraph("<b>Global Summary by Site</b>", styles["Heading2"]))
-    story.append(Spacer(1, 6))
-    story.append(table_summary)
-    story.append(Spacer(1,12))
-
-    
-    # --- Boucle sur les sites ---
     for site in sites:
-        story.append(Paragraph(f"<b>Site : {site}</b>", styles["Heading1"]))
-        story.append(Spacer(1, 10))
+        doc.add_page_break()
+        doc.add_heading(f"Site : {site}", level=1)
 
-        site_df = df[df["SITE"] == site].copy()
-        site_dh = dh[dh["SITE"] == site].copy()
+        site_df  = df[df["SITE"] == site].copy()
+        site_dh  = dh[dh["SITE"] == site].copy()
         site_vaf = df_vaf[df_vaf["SITE"] == site].copy()
 
         site_df["__WEIGHT__"] = site_df["LSDB_Sequence_ID"].apply(get_sample_weight)
         total_samples = site_df["__WEIGHT__"].sum()
-        story.append(Paragraph(f"Total samples : <b>{total_samples}</b>", styles["Normal"]))
-        story.append(Spacer(1, 10))
+        p = doc.add_paragraph()
+        r = p.add_run(f"Total samples : {total_samples}")
+        r.bold = True; r.font.size = Pt(10)
+        doc.add_paragraph()
 
-        # --- Identifier les blocs de gènes ---
-        gene_blocks = {}
+        gene_blocks  = {}
         current_gene = None
         for col in site_df.columns:
             if ": # Drug resistant mutations" in col:
@@ -3321,250 +3081,140 @@ def generate_simple_final_report_by_site_MT_MIX(
         for g in list(gene_blocks.keys()):
             cols = [c for c in gene_blocks[g] if re.search(r"\d", c)]
             gene_blocks[g] = cols
-            if len(cols) == 0:
+            if not cols:
                 gene_blocks.pop(g, None)
         gene_blocks.pop("CytoB", None)
 
-        # --- Définir l'ordre des sections ---
         order = []
         if "DHFR" in gene_blocks or "DHPS" in gene_blocks:
-            order.append(("DHFR and DHPS", ["DHFR","DHPS"]))
-        for g in ["CRT","MDR"]:
+            order.append(("DHFR and DHPS", ["DHFR", "DHPS"]))
+        for g in ["CRT", "MDR"]:
             if g in gene_blocks:
                 order.append((g, [g]))
         for g in gene_blocks:
-            if g not in ("DHFR","DHPS","CRT","MDR","CytoB"):
-                order.append((g,[g]))
+            if g not in ("DHFR", "DHPS", "CRT", "MDR", "CytoB"):
+                order.append((g, [g]))
 
-        # --- Boucle sur les sections de gènes ---
         for section_name, genes_in_section in order:
-            story.append(Paragraph(f"<b>{section_name}</b>", styles["Heading2"]))
-            story.append(Spacer(1, 8))
-
+            doc.add_heading(section_name, level=2)
             processed_haplo_sections = set()
 
             for gene in genes_in_section:
                 snps = gene_blocks.get(gene, [])
-                if not snps: continue
+                if not snps:
+                    continue
 
-                # --- Titre du gène avant le tableau SNP ---
-                story.append(Spacer(1, 6))
-                story.append(Paragraph(f"<b>{gene}</b>", styles["Heading3"]))
-                story.append(Spacer(1, 4))
-
-                style_cell = ParagraphStyle(name='cell', alignment=1, fontSize=8)
-                style_header = ParagraphStyle(name='header', alignment=1, fontSize=9, leading=10)
-
-                table_data_wrapped = []
-                table_data_wrapped.append([Paragraph(str(col), style_header) for col in ["SNP","N of sample","Wild-type (N, %)","Mutant (N, %)","%VAF_MT"]])
-
+                doc.add_heading(gene, level=3)
+                headers = ["SNP", "N of sample", "Wild-type (N, %)", "Mutant (N, %)", "%VAF_MT"]
+                col_widths_cm = [2.5, 1.8, 3.5, 3.5, 2.2]
+                rows = []
                 snp_values_for_plot = []
 
-                
                 for snp in snps:
                     df_snp = site_df[[snp, "LSDB_Sequence_ID", "__WEIGHT__"]].copy()
-
                     mask_wt    = df_snp[snp] == "WT"
-                    mask_mut   = df_snp[snp].isin(["MT", "MIX"])  # <-- MIX compté comme MT
+                    mask_mut   = df_snp[snp].isin(["MT", "MIX"])
                     mask_valid = df_snp[snp].isin(["WT", "MT", "MIX"])
-
                     n_total = df_snp.loc[mask_valid, "__WEIGHT__"].sum()
                     n_wt    = df_snp.loc[mask_wt,   "__WEIGHT__"].sum()
                     n_mut   = df_snp.loc[mask_mut,  "__WEIGHT__"].sum()
-
                     pct_wt  = (n_wt  / n_total * 100) if n_total > 0 else 0
                     pct_mut = (n_mut / n_total * 100) if n_total > 0 else 0
-
-                    # Récupérer les préfixes des échantillons MT+MIX
                     samples_mut = df_snp.loc[mask_mut, "LSDB_Sequence_ID"].str.split("_S").str[0].tolist()
-
-                    # Filtrer site_vaf pour ce SNP avec correspondance sur le préfixe
                     snp_vaf = site_vaf[site_vaf["AA_change"] == snp].copy()
                     snp_vaf["__VAF__"]    = pd.to_numeric(snp_vaf["AVG_VAF"], errors="coerce").fillna(0)
                     snp_vaf["__PREFIX__"] = snp_vaf["Sample_name"].str.split("_S").str[0]
-
                     vaf_mut_rows = snp_vaf[snp_vaf["__PREFIX__"].isin(samples_mut)]
-
-                    # Moyenne simple pour MT+MIX
                     vaf_mut = (vaf_mut_rows["__VAF__"].sum() / len(vaf_mut_rows)) * 100 if len(vaf_mut_rows) > 0 else 0.0
-
-                    table_data_wrapped.append([
-                        Paragraph(str(snp), style_cell),
-                        Paragraph(str(int(n_total)), style_cell),
-                        Paragraph(f"({int(n_wt)}, {pct_wt:.1f}%)", style_cell),
-                        Paragraph(f"({int(n_mut)}, {pct_mut:.1f}%)", style_cell),
-                        Paragraph(f"{vaf_mut:.1f}%", style_cell)
-                    ])
-
+                    rows.append([snp, int(n_total),
+                                 f"({int(n_wt)}, {pct_wt:.1f}%)",
+                                 f"({int(n_mut)}, {pct_mut:.1f}%)", f"{vaf_mut:.1f}%"])
                     snp_values_for_plot.append((snp, int(n_wt), int(n_mut)))
 
+                _docx_snp_table(doc, headers, rows, col_widths_cm)
+                doc.add_paragraph()
 
-                # --- Créer le tableau ---
-                col_widths = [50,50,100,100,60]
-                table = Table(table_data_wrapped, colWidths=col_widths, repeatRows=1)
-                table.setStyle(TableStyle([
-                    ("BACKGROUND",(0,0),(-1,0),colors.lightblue),
-                    ("GRID",(0,0),(-1,-1),0.4,colors.grey),
-                    ("ALIGN",(0,0),(-1,-1),"CENTER")
-                ]))
-                story.append(table)
-                story.append(Spacer(1,6))
-
-                # --- Graphe SNP WT/Mutant ---
                 if snp_values_for_plot:
                     img_path = img_dir / f"{site}_{gene}_SNP.png"
-                    plt.figure(figsize=(6.5,3.8))
                     labels = [x[0] for x in snp_values_for_plot]
-                    wt_counts  = [x[1] for x in snp_values_for_plot]
-                    mut_counts = [x[2] for x in snp_values_for_plot]
-
-                    width = 0.35
-                    x = range(len(labels))
-                    plt.bar(x, wt_counts, width, label="Wild-type")
-                    plt.bar([i + width for i in x], mut_counts, width, label="Mutant")
-
+                    wt_c = [x[1] for x in snp_values_for_plot]
+                    mt_c = [x[2] for x in snp_values_for_plot]
+                    width = 0.35; x = range(len(labels))
+                    plt.figure(figsize=(6.5, 3.8))
+                    plt.bar(x, wt_c, width, label="Wild-type")
+                    plt.bar([i + width for i in x], mt_c, width, label="Mutant")
                     plt.xticks([i + width/2 for i in x], labels, rotation=45, ha="right")
                     plt.ylabel("Nombre d'échantillons")
                     plt.title(f"{gene} SNP distribution — Site {site}")
-                    plt.legend()
-                    plt.tight_layout()
-                    plt.savefig(img_path, dpi=150)
-                    plt.close()
-                    story.append(Image(str(img_path), width=440, height=220))
-                    story.append(Spacer(1,12))
+                    plt.legend(); plt.tight_layout()
+                    plt.savefig(img_path, dpi=150); plt.close()
+                    doc.add_picture(str(img_path), width=Cm(15))
+                    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_paragraph()
 
-            # --- Haplotypes (inchangé) ---
+            # Haplotypes
             haplo_col = section_name
-            if haplo_col in processed_haplo_sections: continue
+            if haplo_col in processed_haplo_sections:
+                continue
             processed_haplo_sections.add(haplo_col)
 
             if haplo_col not in site_dh.columns:
-                story.append(Paragraph(f"Aucun haplotype valide trouvé pour {haplo_col}.", styles["Normal"]))
-                story.append(Spacer(1,6))
+                doc.add_paragraph(f"Aucun haplotype valide trouvé pour {haplo_col}.")
                 continue
 
-            df_h_valid = site_dh.copy()
- 
-            # 1. Exclure les haplotypes non valides (Null, nul*, insensible casse)
-            df_h_valid = df_h_valid[
-                ~df_h_valid[haplo_col].astype(str).str.strip().str.lower().str.startswith("nul")
-            ]
+            df_h_valid = site_dh[
+                ~site_dh[haplo_col].astype(str).str.strip().str.lower().str.startswith("nul")
+            ].copy()
             if df_h_valid.empty:
-                story.append(Paragraph(
-                    f"Aucun haplotype valide pour {haplo_col} — site {site}.",
-                    styles["Normal"]))
-                story.append(Spacer(1, 6))
+                doc.add_paragraph(f"Aucun haplotype valide pour {haplo_col} — site {site}.")
                 continue
- 
-            # 2. Calculer le poids pour identifier les poolés
+
             df_h_valid["__WEIGHT__"] = df_h_valid["Sample"].apply(get_sample_weight)
- 
-            # 3. Garder UNIQUEMENT les échantillons individuels (weight == 1)
-            n_total_site   = len(df_h_valid)
-            df_h_indiv     = df_h_valid[df_h_valid["__WEIGHT__"] == 1].copy()
-            n_indiv        = len(df_h_indiv)
+            n_total_site    = len(df_h_valid)
+            df_h_indiv      = df_h_valid[df_h_valid["__WEIGHT__"] == 1].copy()
+            n_indiv         = len(df_h_indiv)
             n_pool_excluded = n_total_site - n_indiv
- 
+
             if df_h_indiv.empty:
-                story.append(Paragraph(
-                    f"Aucun échantillon individuel pour {haplo_col} — site {site}.",
-                    styles["Normal"]))
-                story.append(Spacer(1, 6))
+                doc.add_paragraph(f"Aucun échantillon individuel pour {haplo_col} — site {site}.")
                 continue
- 
-            # 4. Calcul des fréquences (N simple, pas pondéré — individuel uniquement)
+
             freq = df_h_indiv[haplo_col].value_counts().reset_index()
             freq.columns = ["Haplotype", "Count"]
             total_h = freq["Count"].sum()
             freq["Percent"] = (freq["Count"] / total_h * 100).round(1)
- 
-            # 5. Affichage dans le PDF
-            story.append(Paragraph(f"<b>Haplotypes {haplo_col}</b>", styles["Heading3"]))
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(
-                f"<b>Individual samples (N) : {n_indiv}</b> "
-                f"<i>(Pools excluded : {n_pool_excluded})</i>",
-                styles["Normal"]))
-            story.append(Spacer(1, 4))
-            story.append(Paragraph(
-                f"<b>Total valid haplotypes ({haplo_col}) : {total_h}</b>",
-                styles["Normal"]))
-            story.append(Spacer(1, 6))
- 
-            table_data = [["Haplotype", "N (individual)", "Percent (%)"]]
-            for _, r in freq.iterrows():
-                table_data.append([r["Haplotype"], int(r["Count"]), f"{r['Percent']}%"])
-                
-            t = Table(table_data,colWidths=[220,80,80])
-            t.setStyle(TableStyle([
-                ("BACKGROUND",(0,0),(-1,0),colors.lightgrey),
-                ("GRID",(0,0),(-1,-1),0.4,colors.grey),
-                ("ALIGN",(1,1),(-1,-1),"CENTER")
-            ]))
-            story.append(t)
-            story.append(Spacer(1,6))
+
+            doc.add_heading(f"Haplotypes {haplo_col}", level=3)
+            p = doc.add_paragraph()
+            r = p.add_run(f"Individual samples (N) : {n_indiv}")
+            r.bold = True; r.font.size = Pt(10)
+            p.add_run(f"  (Pools excluded : {n_pool_excluded})").italic = True
+            p2 = doc.add_paragraph()
+            r2 = p2.add_run(f"Total valid haplotypes ({haplo_col}) : {total_h}")
+            r2.bold = True; r2.font.size = Pt(10)
+
+            td = [["Haplotype", "N (individual)", "Percent (%)"]]
+            for _, row in freq.iterrows():
+                td.append([row["Haplotype"], int(row["Count"]), f"{row['Percent']}%"])
+            _docx_haplo_table(doc, td)
+            doc.add_paragraph()
 
             img_path = img_dir / f"{site}_{haplo_col}_haplo.png"
-            plt.figure(figsize=(6,3.5))
-            plt.bar(freq["Haplotype"].astype(str),freq["Count"])
-            plt.xticks(rotation=45,ha="right")
+            plt.figure(figsize=(6, 3.5))
+            plt.bar(freq["Haplotype"].astype(str), freq["Count"])
+            plt.xticks(rotation=45, ha="right")
             plt.title(f"{haplo_col} haplotype distribution — Site {site}")
             plt.tight_layout()
-            plt.savefig(img_path,dpi=150)
-            plt.close()
-            story.append(Image(str(img_path),width=440,height=220))
-            story.append(Spacer(1,12))
+            plt.savefig(img_path, dpi=150); plt.close()
+            doc.add_picture(str(img_path), width=Cm(15))
+            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
 
-        story.append(Spacer(1,18))
+        doc.add_paragraph()
 
-    # --- Header & Footer (corrigé) ---
-    def draw_header(canvas, doc, logo_path):
-        canvas.saveState()
-        # Bandeau positionné juste au-dessus de la zone de contenu, dans la page
-        header_y = doc.pagesize[1] - doc.topMargin + 10
-        canvas.setFillColor(colors.lightblue)
-        canvas.rect(0, header_y, doc.pagesize[0], 30, fill=1, stroke=0)
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=header_y + 5,
-                              width=55, height=20, preserveAspectRatio=True, mask='auto')
-        canvas.setFillColor(colors.black)
-        canvas.setFont("Helvetica-Bold", 12)
-        canvas.drawString(doc.leftMargin + 60, header_y + 10, "CIGASS — UCAD — Sénégal")
-        canvas.restoreState()
+    doc.save(str(docx_path))
+    print(f"[OK] Rapport Word généré : {docx_path}")
 
-    def draw_footer(canvas, doc, logo_path):
-        canvas.saveState()
-        footer_y = doc.bottomMargin - 20
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, x=doc.leftMargin, y=footer_y,
-                              width=40, height=15, preserveAspectRatio=True, mask='auto')
-        canvas.setFont("Helvetica", 10)
-        canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, footer_y + 3, f"Page {doc.page}")
-        canvas.restoreState()
-
-    def decorate_page(canvas, doc):
-        draw_header(canvas, doc, str(logo_path))
-        draw_footer(canvas, doc, str(logo_path))
-
-    # --- Générer le PDF avec marges explicites ---
-    doc = SimpleDocTemplate(
-        str(pdf_path),
-        pagesize=A4,
-        topMargin=60,
-        bottomMargin=50,
-        leftMargin=30,
-        rightMargin=30
-    )
-    frame = Frame(
-        doc.leftMargin,
-        doc.bottomMargin,
-        doc.width,
-        doc.height,
-        id="normal"
-    )
-    page_template = PageTemplate(id="decorated", frames=[frame], onPage=decorate_page)
-    doc.addPageTemplates([page_template])
-    doc.build(story)
 
 
 if __name__ == "__main__":

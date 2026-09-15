@@ -45,3 +45,4 @@ dependencies:
   - pysam=0.24.0
   - biopython=1.88
   - reportlab=5.0.1
+  - python-docx=1.2.0
